@@ -347,7 +347,7 @@ DATA/
 *.hdf5
 
 # Model files
-*.pkl
+# *.pkl  # Commented out - including trained models for hackathon demo
 *.pickle
 *.joblib
 *.model
@@ -357,7 +357,7 @@ DATA/
 cache/
 .cache/
 backend/data/processed/
-backend/data/models/
+# backend/data/models/  # Commented out - including models for team collaboration
 
 # Configuration files with sensitive data
 config.local.json

@@ -352,6 +352,7 @@ async def generate_forecast(
         raise HTTPException(status_code=500, detail=str(e))
 
 # Utility Endpoints
+@app.get("/api/states", response_model=APIResponse)
 @app.get("/api/metadata/states", response_model=APIResponse)
 async def get_states():
     """Get list of available states"""
@@ -390,6 +391,67 @@ async def get_performance_metrics():
         
     except Exception as e:
         logger.error(f"Error getting performance metrics: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ML Model Performance & Accuracy
+@app.get("/api/ml/performance", response_model=APIResponse)
+async def get_ml_model_performance():
+    """Get comprehensive ML model performance metrics and accuracy scores"""
+    try:
+        performance = await ml_service.get_model_performance()
+        return APIResponse(
+            success=True, 
+            data=performance,
+            message="ML model performance metrics calculated successfully"
+        )
+        
+    except Exception as e:
+        logger.error(f"Error getting ML performance: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/ml/improvements", response_model=APIResponse)
+async def get_ml_improvements():
+    """Get detailed recommendations for improving ML model accuracy"""
+    try:
+        recommendations = await ml_service.get_improvement_recommendations()
+        return APIResponse(
+            success=True,
+            data=recommendations,
+            message="Improvement recommendations generated successfully"
+        )
+        
+    except Exception as e:
+        logger.error(f"Error getting recommendations: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/ml/save-models", response_model=APIResponse)
+async def save_ml_models():
+    """Save all trained ML models to disk (PKL files) for persistence"""
+    try:
+        result = await ml_service.save_all_models()
+        return APIResponse(
+            success=result['success'],
+            data=result,
+            message="Models saved successfully" if result['success'] else "Error saving models"
+        )
+        
+    except Exception as e:
+        logger.error(f"Error saving models: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/ml/load-models", response_model=APIResponse)
+async def load_ml_models():
+    """Load previously saved ML models from disk"""
+    try:
+        result = await ml_service.load_saved_models()
+        return APIResponse(
+            success=result['success'],
+            data=result,
+            message=f"Loaded {result.get('total_count', 0)} models" if result['success'] else "Error loading models"
+        )
+        
+    except Exception as e:
+        logger.error(f"Error loading models: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
