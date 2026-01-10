@@ -16,6 +16,7 @@ import {
   RefreshCw,
   Download,
   Settings,
+  MessageCircle,
 } from "lucide-react";
 
 // Import our custom components
@@ -26,6 +27,8 @@ import { GeographicTab } from "@/components/dashboard/geographic-tab";
 import { TemporalTab } from "@/components/dashboard/temporal-tab";
 import { DemographicTab } from "@/components/dashboard/demographic-tab";
 import { MLInsightsTab } from "@/components/dashboard/ml-insights-tab";
+import { GeminiChatBot } from "@/components/dashboard/gemini-chat-bot";
+import { ServiceSimulator } from "@/components/dashboard/service-simulator";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useApiData } from "@/hooks/use-api-data";
 import { useDashboardStore } from "@/store/dashboard-store";
@@ -53,6 +56,8 @@ const itemVariants = {
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState("overview");
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isSimulatorOpen, setIsSimulatorOpen] = useState(false);
+  const [highlightedChart, setHighlightedChart] = useState<string | null>(null);
 
   const { filters, updateFilters, clearFilters } = useDashboardStore();
 
@@ -65,6 +70,22 @@ export default function Dashboard() {
     } finally {
       setIsRefreshing(false);
     }
+  };
+
+  const handleChartHighlight = (chartType: string) => {
+    // Auto-switch to relevant tab based on chart type
+    if (chartType === "geographic-map") {
+      setActiveTab("geographic");
+    } else if (chartType === "time-series") {
+      setActiveTab("temporal");
+    } else if (chartType === "demographic-analysis") {
+      setActiveTab("demographic");
+    } else if (chartType === "ml-insights") {
+      setActiveTab("ml-insights");
+    }
+
+    setHighlightedChart(chartType);
+    setTimeout(() => setHighlightedChart(null), 3000); // Clear highlight after 3 seconds
   };
 
   const tabs = [
@@ -137,21 +158,32 @@ export default function Dashboard() {
             onValueChange={setActiveTab}
             className="space-y-6"
           >
-            <TabsList className="grid grid-cols-5 w-full bg-white shadow-sm">
-              {tabs.map((tab) => {
-                const Icon = tab.icon;
-                return (
-                  <TabsTrigger
-                    key={tab.id}
-                    value={tab.id}
-                    className="flex items-center gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700"
-                  >
-                    <Icon className="h-4 w-4" />
-                    <span className="hidden sm:inline">{tab.label}</span>
-                  </TabsTrigger>
-                );
-              })}
-            </TabsList>
+            <div className="flex items-center justify-between">
+              <TabsList className="grid grid-cols-5 w-full max-w-2xl bg-white shadow-sm">
+                {tabs.map((tab) => {
+                  const Icon = tab.icon;
+                  return (
+                    <TabsTrigger
+                      key={tab.id}
+                      value={tab.id}
+                      className="flex items-center gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700"
+                    >
+                      <Icon className="h-4 w-4" />
+                      <span className="hidden sm:inline">{tab.label}</span>
+                    </TabsTrigger>
+                  );
+                })}
+              </TabsList>
+
+              {/* Simulator Button */}
+              <Button
+                onClick={() => setIsSimulatorOpen(true)}
+                className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white"
+              >
+                <Settings className="h-4 w-4 mr-2" />
+                Simulator
+              </Button>
+            </div>
 
             {/* Tab Contents */}
             <div className="bg-white rounded-lg shadow-sm border">
@@ -217,6 +249,15 @@ export default function Dashboard() {
           </div>
         </div>
       </footer>
+
+      {/* Gemini Chat Bot */}
+      <GeminiChatBot onHighlightChart={handleChartHighlight} />
+
+      {/* Service Simulator */}
+      <ServiceSimulator
+        isOpen={isSimulatorOpen}
+        onClose={() => setIsSimulatorOpen(false)}
+      />
     </motion.div>
   );
 }

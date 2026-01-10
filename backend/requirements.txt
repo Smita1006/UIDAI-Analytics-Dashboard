@@ -22,5 +22,8 @@ asyncio-pool>=0.5.2
 # Performance & Monitoring
 psutil>=5.9.6
 
+# AI/ML Integration
+google-generativeai>=0.3.2
+
 # Development
 python-multipart>=0.0.6

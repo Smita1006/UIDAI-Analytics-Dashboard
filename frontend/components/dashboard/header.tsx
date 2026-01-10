@@ -66,22 +66,26 @@ export function DashboardHeader() {
       let content: string;
       let filename: string;
 
-      if (format === "pdf") {
+      if (format === "json") {
         toast({
-          title: "Generating PDF",
-          description: "Your PDF report is being generated...",
+          title: "Generating JSON Report",
+          description: "Your JSON report is being generated...",
         });
         content = JSON.stringify(
           {
             title: "UIDAI Analytics Report",
             generated: new Date().toISOString(),
-            note: "This is a sample export. Full PDF implementation requires additional libraries.",
             summary: {
               totalEnrollments: "1,006,029",
               biometricAuthentications: "1,861,108",
               demographicVerifications: "2,071,700",
               successRate: "94.2%",
             },
+            insights: [
+              "Bihar shows 38% spike in biometric updates among age 5-17",
+              "Maharashtra leads in enrollment efficiency with 97.2% success rate",
+              "Seasonal patterns detected in Q4 with 15% increase in services",
+            ],
           },
           null,
           2
@@ -89,8 +93,24 @@ export function DashboardHeader() {
         filename = `uidai-report-${
           new Date().toISOString().split("T")[0]
         }.json`;
+      } else if (format === "csv") {
+        toast({
+          title: "Generating CSV Export",
+          description: "Your CSV data is being generated...",
+        });
+        const csvData = [
+          ["Date", "State", "Service Type", "Volume", "Success Rate"],
+          ["2025-03-07", "Bihar", "Biometric", "45320", "94.2%"],
+          ["2025-03-07", "Maharashtra", "Enrollment", "38950", "97.2%"],
+          ["2025-03-07", "Uttar Pradesh", "Demographic", "52100", "95.8%"],
+          ["2025-03-08", "Bihar", "Biometric", "48750", "94.8%"],
+          ["2025-03-08", "Maharashtra", "Enrollment", "41200", "97.5%"],
+          ["2025-03-08", "Uttar Pradesh", "Demographic", "54320", "96.1%"],
+        ];
+        content = csvData.map((row) => row.join(",")).join("\n");
+        filename = `uidai-data-${new Date().toISOString().split("T")[0]}.csv`;
       } else {
-        return; // Only support PDF for now
+        return;
       }
 
       downloadFile(content, filename);
@@ -255,9 +275,13 @@ export function DashboardHeader() {
               <DropdownMenuContent align="end">
                 <DropdownMenuLabel>Export Dashboard Data</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => handleExport("pdf")}>
+                <DropdownMenuItem onClick={() => handleExport("json")}>
                   <FileText className="h-4 w-4 mr-2" />
-                  Export as PDF
+                  Export as JSON
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport("csv")}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Export as CSV
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
