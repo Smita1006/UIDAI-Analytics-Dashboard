@@ -89,7 +89,7 @@ export function DemographicTab({ data }: DemographicTabProps) {
     if (!overall) {
       return [];
     }
-    
+
     return [
       {
         name: "Young (5-17)",
@@ -100,7 +100,8 @@ export function DemographicTab({ data }: DemographicTabProps) {
       {
         name: "Adult (18+)",
         value: overall.adult_count || overall.adult_total || 0,
-        percentage: overall.adult_percentage || (100 - (overall.young_percentage || 0)),
+        percentage:
+          overall.adult_percentage || 100 - (overall.young_percentage || 0),
         color: getAgeGroupColor(1),
       },
     ];
@@ -108,14 +109,15 @@ export function DemographicTab({ data }: DemographicTabProps) {
 
   const prepareServicePreferenceData = () => {
     // Check for data in multiple possible locations
-    let preferences = servicePreferences?.age_preferences || 
-                     servicePreferences?.data?.age_preferences || 
-                     servicePreferences;
-                     
+    let preferences =
+      servicePreferences?.age_preferences ||
+      servicePreferences?.data?.age_preferences ||
+      servicePreferences;
+
     // If we got the raw servicePreferences data and it has biometric/demographic/enrolment directly
     if (preferences && preferences.biometric && preferences.demographic) {
       // Use it directly
-    } else if (!preferences || typeof preferences !== 'object') {
+    } else if (!preferences || typeof preferences !== "object") {
       return [];
     }
 
@@ -125,13 +127,17 @@ export function DemographicTab({ data }: DemographicTabProps) {
       processedPreferences.enrollment = preferences.enrolment;
     }
 
-    return Object.entries(processedPreferences).map(
-      ([service, data]: [string, any]) => {
+    return Object.entries(processedPreferences)
+      .map(([service, data]: [string, any]) => {
         // Skip if data is not an object with the expected structure
-        if (!data || typeof data !== 'object' || (!data.young_count && typeof data.young_count !== 'number')) {
+        if (
+          !data ||
+          typeof data !== "object" ||
+          (!data.young_count && typeof data.young_count !== "number")
+        ) {
           return null;
         }
-        
+
         return {
           service: service
             .replace("_", " ")
@@ -144,7 +150,7 @@ export function DemographicTab({ data }: DemographicTabProps) {
           adult_percentage: data.adult_percentage || 0,
         };
       })
-      .filter(item => item !== null); // Filter out null entries
+      .filter((item) => item !== null); // Filter out null entries
   };
 
   if (isLoading) {
@@ -324,21 +330,17 @@ export function DemographicTab({ data }: DemographicTabProps) {
                     <Tooltip
                       formatter={(value: any, name: string) => [
                         value.toLocaleString(),
-                        name === "young" ? "Young (5-17)" : name === "adult" ? "Adult (18+)" : name,
+                        name === "young"
+                          ? "Young (5-17)"
+                          : name === "adult"
+                          ? "Adult (18+)"
+                          : name,
                       ]}
                     />
                     <Legend />
 
-                    <Bar
-                      dataKey="young"
-                      fill="#3b82f6"
-                      name="Young (5-17)"
-                    />
-                    <Bar
-                      dataKey="adult"
-                      fill="#8b5cf6"
-                      name="Adult (18+)"
-                    />
+                    <Bar dataKey="young" fill="#3b82f6" name="Young (5-17)" />
+                    <Bar dataKey="adult" fill="#8b5cf6" name="Adult (18+)" />
                   </BarChart>
                 </ResponsiveContainer>
               </div>

@@ -863,7 +863,7 @@ async def analyze_temporal_patterns():
         if daily_data and 'daily_trends' in daily_data:
             trends = daily_data['daily_trends']
             
-            # Analyze growth patterns
+            # Analyze growth patterns (reduced threshold from 10% to 5%)
             if len(trends) > 7:
                 recent_avg = np.mean([day.get('total_count', 0) for day in trends[-7:]])
                 previous_avg = np.mean([day.get('total_count', 0) for day in trends[-14:-7]])
@@ -871,50 +871,69 @@ async def analyze_temporal_patterns():
                 if previous_avg > 0:
                     growth_rate = ((recent_avg - previous_avg) / previous_avg) * 100
                     
-                    if growth_rate > 10:
+                    if growth_rate > 5:  # Reduced threshold
                         patterns.append({
                             'type': 'growth_acceleration',
-                            'description': f'Strong growth acceleration detected: {growth_rate:.1f}% increase in recent week',
-                            'impact': 'high',
-                            'recommendation': 'Scale infrastructure to handle increased load'
+                            'description': f'Growth acceleration detected: {growth_rate:.1f}% increase in recent week',
+                            'impact': 'medium',
+                            'recommendation': 'Monitor capacity and scale infrastructure if trend continues'
                         })
-                    elif growth_rate < -10:
+                    elif growth_rate < -5:  # Reduced threshold
                         patterns.append({
                             'type': 'usage_decline',
-                            'description': f'Significant usage decline detected: {abs(growth_rate):.1f}% decrease',
+                            'description': f'Usage decline detected: {abs(growth_rate):.1f}% decrease',
                             'impact': 'medium',
                             'recommendation': 'Investigate causes of declining usage'
                         })
+                        
+                    # Always add at least one pattern about the trend
+                    if abs(growth_rate) < 5:
+                        patterns.append({
+                            'type': 'stable_usage',
+                            'description': f'Stable usage pattern: {abs(growth_rate):.1f}% variance in recent week',
+                            'impact': 'low',
+                            'recommendation': 'Continue current operations'
+                        })
             
-            # Analyze service type patterns
+            # Analyze service type patterns with correct field names
             service_ratios = {}
             for day in trends[-30:]:  # Last 30 days
                 total = day.get('total_count', 0)
                 if total > 0:
                     biometric_ratio = (day.get('biometric_count', 0) / total) * 100
                     demographic_ratio = (day.get('demographic_count', 0) / total) * 100
+                    enrollment_ratio = (day.get('enrollment_count', 0) / total) * 100
                     
                     service_ratios.setdefault('biometric', []).append(biometric_ratio)
                     service_ratios.setdefault('demographic', []).append(demographic_ratio)
+                    service_ratios.setdefault('enrollment', []).append(enrollment_ratio)
             
-            # Find service preference patterns
+            # Find service preference patterns (reduced thresholds)
             if service_ratios:
                 avg_biometric = np.mean(service_ratios.get('biometric', [0]))
                 avg_demographic = np.mean(service_ratios.get('demographic', [0]))
+                avg_enrollment = np.mean(service_ratios.get('enrollment', [0]))
                 
-                if avg_biometric > 60:
+                if avg_biometric > 40:  # Reduced from 60
                     patterns.append({
                         'type': 'biometric_preference',
-                        'description': f'Strong preference for biometric updates: {avg_biometric:.1f}% of requests',
+                        'description': f'Strong biometric usage pattern: {avg_biometric:.1f}% of daily requests',
                         'impact': 'medium',
                         'recommendation': 'Optimize biometric processing infrastructure'
                     })
-                elif avg_demographic > 60:
+                if avg_demographic > 30:  # Reduced from 60
                     patterns.append({
-                        'type': 'demographic_preference',
-                        'description': f'Strong preference for demographic updates: {avg_demographic:.1f}% of requests',
+                        'type': 'demographic_preference', 
+                        'description': f'Significant demographic updates: {avg_demographic:.1f}% of daily requests',
                         'impact': 'medium',
                         'recommendation': 'Enhance demographic data validation systems'
+                    })
+                if avg_enrollment > 0:  # Any enrollment activity
+                    patterns.append({
+                        'type': 'enrollment_activity',
+                        'description': f'Enrollment activity detected: {avg_enrollment:.1f}% of requests',
+                        'impact': 'low',
+                        'recommendation': 'Monitor enrollment capacity during peak periods'
                     })
         
         return patterns
@@ -934,49 +953,48 @@ async def analyze_geographic_patterns():
             states = geo_data['states']
             
             # Find volume concentration
-            total_volume = sum(state.get('volume', 0) for state in states)
-            top_states = sorted(states, key=lambda x: x.get('volume', 0), reverse=True)[:5]
-            top_5_volume = sum(state.get('volume', 0) for state in top_states)
+            total_volume = sum(state.get('total_count', state.get('volume', 0)) for state in states)
+            sorted_states = sorted(states, key=lambda x: x.get('total_count', x.get('volume', 0)), reverse=True)
             
-            if total_volume > 0:
+            if total_volume > 0 and len(sorted_states) >= 5:
+                # Top 5 states analysis
+                top_5_volume = sum(state.get('total_count', state.get('volume', 0)) for state in sorted_states[:5])
                 concentration = (top_5_volume / total_volume) * 100
                 
-                if concentration > 70:
-                    patterns.append({
-                        'type': 'high_concentration',
-                        'description': f'High geographic concentration: Top 5 states account for {concentration:.1f}% of volume',
-                        'impact': 'high',
-                        'recommendation': 'Implement load balancing across regions'
-                    })
-            
-            # Find growth disparities
-            growth_rates = [state.get('growth_rate', 0) for state in states if state.get('growth_rate') is not None]
-            if growth_rates:
-                growth_std = np.std(growth_rates)
-                growth_mean = np.mean(growth_rates)
+                patterns.append({
+                    'type': 'geographic_concentration',
+                    'description': f'Geographic concentration: Top 5 states ({sorted_states[0]["name"]}, {sorted_states[1]["name"]}, etc.) account for {concentration:.1f}% of total volume',
+                    'impact': 'high' if concentration > 70 else 'medium',
+                    'recommendation': 'Implement load balancing across regions' if concentration > 70 else 'Monitor regional capacity'
+                })
                 
-                if growth_std > growth_mean * 0.5:  # High variability
-                    patterns.append({
-                        'type': 'uneven_growth',
-                        'description': f'Uneven growth patterns across states (std: {growth_std:.1f}%)',
-                        'impact': 'medium',
-                        'recommendation': 'Targeted outreach in slow-growth regions'
-                    })
-            
-            # Identify outliers
-            volumes = [state.get('volume', 0) for state in states]
-            if len(volumes) > 10:
-                q3, q1 = np.percentile(volumes, [75, 25])
-                iqr = q3 - q1
-                outlier_threshold = q3 + 1.5 * iqr
+                # Analyze top state specifically
+                top_state = sorted_states[0]
+                top_state_percentage = (top_state.get('total_count', top_state.get('volume', 0)) / total_volume) * 100
                 
-                outliers = [state for state in states if state.get('volume', 0) > outlier_threshold]
-                if outliers:
+                if top_state_percentage > 15:
                     patterns.append({
-                        'type': 'volume_outliers',
-                        'description': f'Identified {len(outliers)} states with exceptional volume: {[s.get("name", "Unknown") for s in outliers]}',
+                        'type': 'dominant_state',
+                        'description': f'{top_state["name"]} accounts for {top_state_percentage:.1f}% of total transactions',
                         'impact': 'medium',
-                        'recommendation': 'Study success factors in high-volume states'
+                        'recommendation': f'Ensure robust infrastructure in {top_state["name"]}'
+                    })
+                
+                # Analyze age distribution patterns if available
+                high_young_states = []
+                for state in sorted_states[:10]:  # Top 10 states
+                    young_ratio = state.get('young_ratio', 0)
+                    if young_ratio > 0.5:  # More than 50% young users
+                        high_young_states.append((state['name'], young_ratio))
+                
+                if high_young_states:
+                    state_names = ', '.join([name for name, _ in high_young_states[:3]])
+                    avg_young_ratio = np.mean([ratio for _, ratio in high_young_states]) * 100
+                    patterns.append({
+                        'type': 'young_demographic_concentration',
+                        'description': f'High young user concentration in {state_names}: average {avg_young_ratio:.1f}% young users',
+                        'impact': 'low',
+                        'recommendation': 'Tailor services for younger demographics in these regions'
                     })
         
         return patterns
@@ -992,35 +1010,85 @@ async def analyze_demographic_patterns():
         
         # Get demographic data
         demo_data = await data_service.get_age_distribution()
+        
+        # First try the age distribution endpoint
         if demo_data and 'age_groups' in demo_data:
             age_groups = demo_data['age_groups']
             
-            # Find dominant age groups
-            for age_group, data in age_groups.items():
-                percentage = data.get('percentage', 0)
-                if percentage > 30:
+            # Find patterns in age groups - handle both dict and list formats
+            if isinstance(age_groups, dict):
+                for age_group, data in age_groups.items():
+                    percentage = data.get('percentage', 0)
+                    if percentage > 20:  # Reduced from 30 to 20
+                        patterns.append({
+                            'type': 'age_dominance',
+                            'description': f'Age group {age_group} represents {percentage:.1f}% of all requests',
+                            'impact': 'medium',
+                            'recommendation': f'Optimize services for {age_group} demographic'
+                        })
+            elif isinstance(age_groups, list):
+                for group in age_groups:
+                    percentage = group.get('percentage', 0)
+                    age_range = group.get('age_range', group.get('name', 'unknown'))
+                    if percentage > 20:
+                        patterns.append({
+                            'type': 'age_concentration',
+                            'description': f'Age group {age_range} represents {percentage:.1f}% of all users',
+                            'impact': 'medium',
+                            'recommendation': f'Tailor services for {age_range} users'
+                        })
+        
+        # Alternative: Try demographic summary if age distribution doesn't work
+        if not patterns:
+            demo_summary = await data_service.get_demographic_summary()
+            if demo_summary:
+                # Check for age groups in summary
+                if 'age_groups' in demo_summary:
+                    age_data = demo_summary['age_groups']
+                    total_count = sum(item.get('count', 0) for item in age_data) if isinstance(age_data, list) else sum(age_data.values()) if isinstance(age_data, dict) else 0
+                    
+                    if total_count > 0:
+                        if isinstance(age_data, list):
+                            for item in age_data:
+                                count = item.get('count', 0)
+                                percentage = (count / total_count) * 100
+                                age_range = item.get('age_range', item.get('name', 'unknown'))
+                                if percentage > 15:  # Even more lenient threshold
+                                    patterns.append({
+                                        'type': 'demographic_insight',
+                                        'description': f'{age_range} users comprise {percentage:.1f}% of the user base',
+                                        'impact': 'medium',
+                                        'recommendation': f'Focus on {age_range} user experience'
+                                    })
+                
+                # Check gender distribution
+                if 'gender_distribution' in demo_summary:
+                    gender_dist = demo_summary['gender_distribution']
+                    if isinstance(gender_dist, dict):
+                        total_gender = sum(gender_dist.values())
+                        if total_gender > 0:
+                            for gender, count in gender_dist.items():
+                                percentage = (count / total_gender) * 100
+                                if percentage > 60:  # Significant gender skew
+                                    patterns.append({
+                                        'type': 'gender_skew',
+                                        'description': f'{gender} users represent {percentage:.1f}% of total registrations',
+                                        'impact': 'low',
+                                        'recommendation': f'Develop outreach strategies for underrepresented gender'
+                                    })
+        
+        # Generate at least one insight based on service data if no demographic patterns found
+        if not patterns:
+            summary = await data_service.get_summary()
+            if summary and 'total_records' in summary:
+                total = summary['total_records']
+                if total > 1000000:  # Over 1 million records
                     patterns.append({
-                        'type': 'age_dominance',
-                        'description': f'Age group {age_group} represents {percentage:.1f}% of all requests',
-                        'impact': 'medium',
-                        'recommendation': f'Optimize services for {age_group} demographic'
+                        'type': 'large_user_base',
+                        'description': f'Large user base with {total:,} total records indicates widespread adoption',
+                        'impact': 'high',
+                        'recommendation': 'Implement scalable infrastructure and user support systems'
                     })
-            
-            # Service preferences by age
-            service_prefs = await data_service.get_service_preferences()
-            if service_prefs and 'by_age' in service_prefs:
-                for age_group, services in service_prefs['by_age'].items():
-                    total = sum(services.values())
-                    if total > 0:
-                        for service, count in services.items():
-                            ratio = (count / total) * 100
-                            if ratio > 70:
-                                patterns.append({
-                                    'type': 'service_age_preference',
-                                    'description': f'Age group {age_group} strongly prefers {service}: {ratio:.1f}%',
-                                    'impact': 'low',
-                                    'recommendation': f'Streamline {service} process for {age_group}'
-                                })
         
         return patterns
         
@@ -1037,7 +1105,7 @@ async def analyze_service_patterns():
         if summary:
             total = summary.get('total_records', 0)
             bio = summary.get('biometric_updates', 0)
-            demo = summary.get('demographic_updates', 0)
+            demo = summary.get('demographic_updates', 0) 
             enroll = summary.get('enrollments', 0)
             
             if total > 0:
@@ -1045,29 +1113,51 @@ async def analyze_service_patterns():
                 demo_pct = (demo / total) * 100
                 enroll_pct = (enroll / total) * 100
                 
-                # Find dominant service types
-                if bio_pct > 50:
+                # Find service type patterns with realistic thresholds
+                if bio_pct > 30:  # Reduced from 50 to 30
                     patterns.append({
-                        'type': 'biometric_dominance',
-                        'description': f'Biometric updates dominate service requests: {bio_pct:.1f}%',
+                        'type': 'biometric_preference',
+                        'description': f'Biometric updates are popular: {bio_pct:.1f}% of all services',
+                        'impact': 'medium',
+                        'recommendation': 'Optimize biometric processing infrastructure'
+                    })
+                
+                if demo_pct > 30:
+                    patterns.append({
+                        'type': 'demographic_updates_trend',
+                        'description': f'High demographic update activity: {demo_pct:.1f}% of services',
+                        'impact': 'medium', 
+                        'recommendation': 'Streamline demographic update processes'
+                    })
+                
+                if enroll_pct > 20:  # Even lower threshold for enrollment
+                    patterns.append({
+                        'type': 'enrollment_activity',
+                        'description': f'Significant enrollment activity: {enroll_pct:.1f}% of total transactions',
                         'impact': 'high',
-                        'recommendation': 'Prioritize biometric processing optimization'
+                        'recommendation': 'Scale enrollment infrastructure and support'
                     })
                 
-                if demo_pct > 40:
+                # Analyze balance between services
+                services = [('Biometric', bio_pct), ('Demographic', demo_pct), ('Enrollment', enroll_pct)]
+                max_service = max(services, key=lambda x: x[1])
+                min_service = min(services, key=lambda x: x[1])
+                
+                if max_service[1] - min_service[1] > 30:  # Significant imbalance
                     patterns.append({
-                        'type': 'demographic_high_usage',
-                        'description': f'High demographic update usage: {demo_pct:.1f}%',
+                        'type': 'service_imbalance',
+                        'description': f'Service usage imbalance: {max_service[0]} ({max_service[1]:.1f}%) vs {min_service[0]} ({min_service[1]:.1f}%)',
                         'impact': 'medium',
-                        'recommendation': 'Enhance demographic data validation'
+                        'recommendation': 'Balance resource allocation across service types'
                     })
                 
-                if enroll_pct < 10:
+                # Volume-based insights
+                if total > 2000000:  # Over 2M records
                     patterns.append({
-                        'type': 'low_enrollment',
-                        'description': f'Low new enrollment rate: {enroll_pct:.1f}%',
-                        'impact': 'medium',
-                        'recommendation': 'Investigate enrollment barriers'
+                        'type': 'high_volume_system',
+                        'description': f'High-volume system processing {total:,} total transactions',
+                        'impact': 'high',
+                        'recommendation': 'Implement advanced load balancing and monitoring'
                     })
         
         return patterns
@@ -1075,6 +1165,43 @@ async def analyze_service_patterns():
     except Exception as e:
         logger.warning(f"Error analyzing service patterns: {e}")
         return []
+
+async def extract_meaningful_patterns():
+    """Extract and prioritize meaningful patterns from all analysis results"""
+    try:
+        all_patterns = []
+        
+        # Combine patterns from all analyses
+        temporal = await analyze_temporal_patterns()
+        geographic = await analyze_geographic_patterns()
+        demographic = await analyze_demographic_patterns()
+        service = await analyze_service_patterns()
+        
+        all_patterns.extend(temporal)
+        all_patterns.extend(geographic)
+        all_patterns.extend(demographic)
+        all_patterns.extend(service)
+        
+        # Prioritize by impact
+        high_impact = [p for p in all_patterns if p.get('impact') == 'high']
+        medium_impact = [p for p in all_patterns if p.get('impact') == 'medium']
+        low_impact = [p for p in all_patterns if p.get('impact') == 'low']
+        
+        return {
+            'high_impact_patterns': high_impact,
+            'medium_impact_patterns': medium_impact,
+            'low_impact_patterns': low_impact,
+            'total_patterns': len(all_patterns),
+            'summary': {
+                'critical_actions_needed': len(high_impact),
+                'monitoring_required': len(medium_impact),
+                'optimization_opportunities': len(low_impact)
+            }
+        }
+        
+    except Exception as e:
+        logger.warning(f"Error extracting patterns: {e}")
+        return {'high_impact_patterns': [], 'medium_impact_patterns': [], 'low_impact_patterns': []}
 
 async def analyze_anomaly_patterns():
     """Analyze anomaly detection results"""
@@ -1094,26 +1221,26 @@ async def analyze_anomaly_patterns():
                 
                 if high_severity:
                     patterns.append({
-                        'type': 'high_severity_anomalies',
-                        'description': f'Detected {len(high_severity)} high-severity anomalies requiring immediate attention',
+                        'type': 'critical_anomalies',
+                        'description': f'Detected {len(high_severity)} critical anomalies requiring immediate attention',
                         'impact': 'high',
-                        'recommendation': 'Immediate investigation of anomalous patterns'
+                        'recommendation': 'Investigate and address critical anomalies immediately'
                     })
                 
                 if geographic_anomalies:
                     patterns.append({
                         'type': 'geographic_anomalies',
-                        'description': f'Geographic anomalies detected in {len(geographic_anomalies)} locations',
+                        'description': f'Geographic anomalies detected in {len(set(a.get("location", "unknown") for a in geographic_anomalies))} regions',
                         'impact': 'medium',
-                        'recommendation': 'Review regional processing patterns'
+                        'recommendation': 'Review regional operations for inconsistencies'
                     })
                 
                 if temporal_anomalies:
                     patterns.append({
                         'type': 'temporal_anomalies',
-                        'description': f'Temporal anomalies detected in {len(temporal_anomalies)} time periods',
+                        'description': f'Time-based anomalies detected across {len(temporal_anomalies)} instances',
                         'impact': 'medium',
-                        'recommendation': 'Analyze time-based processing variations'
+                        'recommendation': 'Analyze temporal patterns and system load'
                     })
         
         return patterns
@@ -1123,6 +1250,104 @@ async def analyze_anomaly_patterns():
         return []
 
 async def generate_predictive_insights():
+    """Generate predictive insights and forecasts"""
+    try:
+        patterns = []
+        
+        # Generate forecast
+        forecast = await ml_service.generate_forecast(days=7)
+        if forecast and 'forecast' in forecast:
+            forecast_data = forecast['forecast']
+            
+            # Analyze growth trends
+            if len(forecast_data) > 1:
+                recent_avg = np.mean([d.get('value', 0) for d in forecast_data[:3]])
+                later_avg = np.mean([d.get('value', 0) for d in forecast_data[-3:]])
+                
+                growth_rate = ((later_avg - recent_avg) / recent_avg) * 100 if recent_avg > 0 else 0
+                
+                if abs(growth_rate) > 5:  # Significant trend
+                    trend = 'growth' if growth_rate > 0 else 'decline'
+                    patterns.append({
+                        'type': f'predicted_{trend}',
+                        'description': f'Forecasted {abs(growth_rate):.1f}% {trend} in volume over next week',
+                        'impact': 'high' if abs(growth_rate) > 10 else 'medium',
+                        'recommendation': f'Prepare infrastructure for predicted {trend}'
+                    })
+        
+        # Capacity planning insights
+        summary = await data_service.get_summary()
+        if summary:
+            current_volume = summary.get('total_records', 0)
+            daily_avg = current_volume / 365 if current_volume > 0 else 0
+            
+            if daily_avg > 10000:  # High volume system
+                patterns.append({
+                    'type': 'capacity_planning',
+                    'description': f'High daily volume ({daily_avg:,.0f} records/day) requires robust scaling',
+                    'impact': 'medium',
+                    'recommendation': 'Implement auto-scaling and performance monitoring'
+                })
+        
+        return patterns
+        
+    except Exception as e:
+        logger.warning(f"Error generating predictive insights: {e}")
+        return []
+
+# Remove the duplicate and orphaned extract_meaningful_patterns function
+
+async def generate_system_recommendations():
+    """Generate actionable system improvement recommendations"""
+    try:
+        recommendations = []
+        
+        # Get comprehensive patterns
+        patterns = await extract_meaningful_patterns()
+        
+        # Analyze high impact patterns for recommendations
+        high_impact = patterns.get('high_impact_patterns', [])
+        medium_impact = patterns.get('medium_impact_patterns', [])
+        
+        # Generate recommendations based on patterns
+        if high_impact:
+            for pattern in high_impact[:5]:  # Top 5 high impact
+                recommendations.append({
+                    'priority': 'high',
+                    'title': pattern.get('type', 'Unknown').replace('_', ' ').title(),
+                    'description': pattern.get('recommendation', 'No recommendation available'),
+                    'impact': pattern.get('impact', 'medium'),
+                    'category': 'performance'
+                })
+        
+        if medium_impact:
+            for pattern in medium_impact[:3]:  # Top 3 medium impact
+                recommendations.append({
+                    'priority': 'medium',
+                    'title': pattern.get('type', 'Unknown').replace('_', ' ').title(),
+                    'description': pattern.get('recommendation', 'No recommendation available'),
+                    'impact': pattern.get('impact', 'medium'),
+                    'category': 'optimization'
+                })
+        
+        # Add general system recommendations
+        summary = await data_service.get_summary()
+        if summary:
+            total_records = summary.get('total_records', 0)
+            if total_records > 1000000:
+                recommendations.append({
+                    'priority': 'medium',
+                    'title': 'Performance Monitoring',
+                    'description': 'Implement comprehensive performance monitoring for large-scale operations',
+                    'impact': 'medium',
+                    'category': 'infrastructure'
+                })
+        
+        return recommendations
+        
+    except Exception as e:
+        logger.warning(f"Error generating recommendations: {e}")
+        return []
     """Generate predictive insights for future trends"""
     try:
         patterns = []

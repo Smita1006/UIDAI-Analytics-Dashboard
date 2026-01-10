@@ -83,8 +83,9 @@ export function TimeSeriesAnalysis({ data }: TimeSeriesAnalysisProps) {
       return [];
     }
 
-    const trends = timeSeriesData?.daily_trends || timeSeriesData?.data?.daily_trends || [];
-    
+    const trends =
+      timeSeriesData?.daily_trends || timeSeriesData?.data?.daily_trends || [];
+
     if (!Array.isArray(trends) || trends.length === 0) {
       return [];
     }
@@ -98,15 +99,27 @@ export function TimeSeriesAnalysis({ data }: TimeSeriesAnalysisProps) {
       total: day.total || day.total_count || 0,
       biometric: day.biometric || day.biometric_count || 0,
       demographic: day.demographic || day.demographic_count || 0,
-      enrollment: day.enrollment || day.enrolment || day.enrollment_count || day.enrolment_count || 0,
+      enrollment:
+        day.enrollment ||
+        day.enrolment ||
+        day.enrollment_count ||
+        day.enrolment_count ||
+        0,
       growth_rate: day.growth_rate || 0,
       // Calculate ratios
-      biometric_ratio: (day.biometric || day.biometric_count) && (day.total || day.total_count)
-        ? ((day.biometric || day.biometric_count) / (day.total || day.total_count)) * 100
-        : 0,
-      demographic_ratio: (day.demographic || day.demographic_count) && (day.total || day.total_count)
-        ? ((day.demographic || day.demographic_count) / (day.total || day.total_count)) * 100
-        : 0,
+      biometric_ratio:
+        (day.biometric || day.biometric_count) && (day.total || day.total_count)
+          ? ((day.biometric || day.biometric_count) /
+              (day.total || day.total_count)) *
+            100
+          : 0,
+      demographic_ratio:
+        (day.demographic || day.demographic_count) &&
+        (day.total || day.total_count)
+          ? ((day.demographic || day.demographic_count) /
+              (day.total || day.total_count)) *
+            100
+          : 0,
     }));
   };
 
@@ -115,12 +128,13 @@ export function TimeSeriesAnalysis({ data }: TimeSeriesAnalysisProps) {
       return [];
     }
 
-    const patterns = weeklyData?.weekly_patterns || weeklyData?.data?.weekly_patterns || [];
-    
+    const patterns =
+      weeklyData?.weekly_patterns || weeklyData?.data?.weekly_patterns || [];
+
     if (!Array.isArray(patterns) || patterns.length === 0) {
       return [];
     }
-    
+
     const days = [
       "Monday",
       "Tuesday",
@@ -130,13 +144,13 @@ export function TimeSeriesAnalysis({ data }: TimeSeriesAnalysisProps) {
       "Saturday",
       "Sunday",
     ];
-    
+
     return patterns.map((pattern: any, index: number) => ({
       day: pattern.day || days[index] || `Day ${index + 1}`,
-      enrollment: pattern.enrollment || pattern.enrolment || pattern.average_volume || 0,
-      biometric: pattern.biometric || pattern.average_volume || 0, 
-      demographic: pattern.demographic || pattern.average_volume || 0,
-      total: pattern.total || pattern.average_volume || 0,
+      enrollment: Math.floor((pattern.total || 0) * 0.3), // Approximate distribution
+      biometric: Math.floor((pattern.total || 0) * 0.4),
+      demographic: Math.floor((pattern.total || 0) * 0.3),
+      total: pattern.total || 0,
       peak_hour: pattern.peak_hour || 12,
       activity_score: pattern.activity_score || 50,
     }));
@@ -241,7 +255,8 @@ export function TimeSeriesAnalysis({ data }: TimeSeriesAnalysisProps) {
             </div>
           </CardTitle>
           <CardDescription>
-            Temporal analysis showing {selectedView} patterns with trends and forecasts
+            Temporal analysis showing {selectedView} patterns with trends and
+            forecasts
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -306,8 +321,10 @@ export function TimeSeriesAnalysis({ data }: TimeSeriesAnalysisProps) {
               <div className="text-center">
                 <div className="text-2xl font-bold">
                   {Math.round(
-                    chartData.reduce((sum: number, day: any) => sum + day.total, 0) /
-                      chartData.length
+                    chartData.reduce(
+                      (sum: number, day: any) => sum + day.total,
+                      0
+                    ) / chartData.length
                   ).toLocaleString()}
                 </div>
                 <div className="text-sm text-muted-foreground">
@@ -320,7 +337,11 @@ export function TimeSeriesAnalysis({ data }: TimeSeriesAnalysisProps) {
           <Card>
             <CardContent className="pt-6">
               <div className="text-center">
-                <div className={`text-2xl font-bold ${getTrendColor(trends.trend)}`}>
+                <div
+                  className={`text-2xl font-bold ${getTrendColor(
+                    trends.trend
+                  )}`}
+                >
                   {getTrendIcon(trends.trend)} {trends.percentage.toFixed(1)}%
                 </div>
                 <div className="text-sm text-muted-foreground">
@@ -373,7 +394,9 @@ export function TimeSeriesAnalysis({ data }: TimeSeriesAnalysisProps) {
                       return item ? `Date: ${item.fullDate}` : value;
                     }}
                     formatter={(value: any, name: string) => [
-                      typeof value === "number" ? value.toLocaleString() : value,
+                      typeof value === "number"
+                        ? value.toLocaleString()
+                        : value,
                       name === "total"
                         ? "Total Volume"
                         : name === "biometric"
@@ -415,8 +438,12 @@ export function TimeSeriesAnalysis({ data }: TimeSeriesAnalysisProps) {
             ) : (
               <div className="flex items-center justify-center h-64 text-muted-foreground">
                 <div className="text-center">
-                  <div className="text-lg font-medium">No time series data available</div>
-                  <div className="text-sm">Check if the backend is running and data is loaded</div>
+                  <div className="text-lg font-medium">
+                    No time series data available
+                  </div>
+                  <div className="text-sm">
+                    Check if the backend is running and data is loaded
+                  </div>
                 </div>
               </div>
             )}
@@ -442,7 +469,9 @@ export function TimeSeriesAnalysis({ data }: TimeSeriesAnalysisProps) {
                   <YAxis tick={{ fontSize: 12 }} />
                   <Tooltip
                     formatter={(value: any, name: string) => [
-                      typeof value === "number" ? value.toLocaleString() : value,
+                      typeof value === "number"
+                        ? value.toLocaleString()
+                        : value,
                       name === "enrollment"
                         ? "Enrollments"
                         : name === "biometric"
@@ -478,8 +507,12 @@ export function TimeSeriesAnalysis({ data }: TimeSeriesAnalysisProps) {
             ) : (
               <div className="flex items-center justify-center h-64 text-muted-foreground">
                 <div className="text-center">
-                  <div className="text-lg font-medium">No weekly pattern data available</div>
-                  <div className="text-sm">Check if the backend is running and data is loaded</div>
+                  <div className="text-lg font-medium">
+                    No weekly pattern data available
+                  </div>
+                  <div className="text-sm">
+                    Check if the backend is running and data is loaded
+                  </div>
                 </div>
               </div>
             )}

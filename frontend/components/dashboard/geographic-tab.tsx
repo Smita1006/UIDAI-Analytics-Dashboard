@@ -303,15 +303,14 @@ export function GeographicTab({ data }: GeographicTabProps) {
 
               {statesData.states.length > 15 && (
                 <div className="text-center py-4">
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     size="sm"
                     onClick={() => setShowAllStates(!showAllStates)}
                   >
-                    {showAllStates 
-                      ? 'Show Top 15 States' 
-                      : `View All ${statesData.states.length} States`
-                    }
+                    {showAllStates
+                      ? "Show Top 15 States"
+                      : `View All ${statesData.states.length} States`}
                   </Button>
                 </div>
               )}
