@@ -45,7 +45,7 @@ export function OverviewTab({ data }: OverviewTabProps) {
         const response = await apiClient.getGeographicOverview();
         setGeoData(response);
       } catch (error) {
-        console.error("Error loading geographic data:", error);
+        // Error loading geographic data - silently handle
       } finally {
         setIsLoadingGeo(false);
       }
@@ -76,9 +76,9 @@ export function OverviewTab({ data }: OverviewTabProps) {
   const geoOverview = geoData || {};
 
   const getServiceDistribution = () => {
-    const bio = kpisData.biometric_updates || 0;
-    const demo = kpisData.demographic_updates || 0;
-    const enrollment = kpisData.new_enrollments || 0;
+    const bio = (kpisData as any).biometric_updates || 0;
+    const demo = (kpisData as any).demographic_updates || 0;
+    const enrollment = (kpisData as any).new_enrollments || 0;
 
     return [
       { name: "Biometric Updates", value: bio, color: "#3b82f6" },
@@ -101,12 +101,12 @@ export function OverviewTab({ data }: OverviewTabProps) {
     const insights = [];
 
     // Total activity insight
-    const totalTransactions = kpisData.total_transactions || 0;
+    const totalTransactions = (kpisData as any).total_transactions || 0;
     if (totalTransactions > 0) {
       insights.push({
         title: "Total Activity",
         value: totalTransactions.toLocaleString(),
-        description: `Across ${summaryData.unique_states || 0} states`,
+        description: `Across ${(summaryData as any).unique_states || 0} states`,
         icon: BarChart3,
       });
     }
@@ -145,12 +145,12 @@ export function OverviewTab({ data }: OverviewTabProps) {
     }
 
     // Daily average insight
-    const dailyAverage = kpisData.daily_average || 0;
+    const dailyAverage = (kpisData as any).daily_average || 0;
     if (dailyAverage > 0) {
       insights.push({
         title: "Daily Average",
         value: dailyAverage.toLocaleString(),
-        description: `Over ${summaryData.days_of_data || 0} days`,
+        description: `Over ${(summaryData as any).days_of_data || 0} days`,
         icon: Calendar,
       });
     }
@@ -175,10 +175,10 @@ export function OverviewTab({ data }: OverviewTabProps) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {(kpisData.total_transactions || 0).toLocaleString()}
+              {((kpisData as any).total_transactions || 0).toLocaleString()}
             </div>
             <p className="text-xs text-muted-foreground">
-              Across {summaryData.days_of_data || 0} days
+              Across {(summaryData as any).days_of_data || 0} days
             </p>
           </CardContent>
         </Card>
@@ -192,10 +192,10 @@ export function OverviewTab({ data }: OverviewTabProps) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {(kpisData.biometric_updates || 0).toLocaleString()}
+              {((kpisData as any).biometric_updates || 0).toLocaleString()}
             </div>
             <p className="text-xs text-muted-foreground">
-              {(kpisData.bio_ratio || 0).toFixed(1)}% of total
+              {((kpisData as any).bio_ratio || 0).toFixed(1)}% of total
             </p>
           </CardContent>
         </Card>
@@ -209,10 +209,10 @@ export function OverviewTab({ data }: OverviewTabProps) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {(kpisData.demographic_updates || 0).toLocaleString()}
+              {((kpisData as any).demographic_updates || 0).toLocaleString()}
             </div>
             <p className="text-xs text-muted-foreground">
-              {(kpisData.demo_ratio || 0).toFixed(1)}% of total
+              {((kpisData as any).demo_ratio || 0).toFixed(1)}% of total
             </p>
           </CardContent>
         </Card>
@@ -226,10 +226,10 @@ export function OverviewTab({ data }: OverviewTabProps) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {(kpisData.new_enrollments || 0).toLocaleString()}
+              {((kpisData as any).new_enrollments || 0).toLocaleString()}
             </div>
             <p className="text-xs text-muted-foreground">
-              {(kpisData.enrollment_ratio || 0).toFixed(1)}% of total
+              {((kpisData as any).enrollment_ratio || 0).toFixed(1)}% of total
             </p>
           </CardContent>
         </Card>
@@ -284,7 +284,7 @@ export function OverviewTab({ data }: OverviewTabProps) {
           <CardContent>
             {topStates.length > 0 ? (
               <div className="space-y-4">
-                {topStates.map((state, index) => (
+                {topStates.map((state: any, index: number) => (
                   <div
                     key={state.name}
                     className="flex items-center justify-between"

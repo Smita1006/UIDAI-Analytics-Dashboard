@@ -26,7 +26,6 @@ import { GeographicTab } from "@/components/dashboard/geographic-tab";
 import { TemporalTab } from "@/components/dashboard/temporal-tab";
 import { DemographicTab } from "@/components/dashboard/demographic-tab";
 import { MLInsightsTab } from "@/components/dashboard/ml-insights-tab";
-import { FilterPanel } from "@/components/dashboard/filter-panel";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useApiData } from "@/hooks/use-api-data";
 import { useDashboardStore } from "@/store/dashboard-store";
@@ -100,7 +99,7 @@ export default function Dashboard() {
       <DashboardHeader />
 
       <main className="container mx-auto p-6 space-y-6">
-        {/* Action Bar */}
+        {/* Status Bar */}
         <motion.div
           variants={itemVariants}
           className="flex items-center justify-between"
@@ -119,34 +118,6 @@ export default function Dashboard() {
               </Badge>
             )}
           </div>
-
-          <div className="flex items-center space-x-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleRefresh}
-              disabled={isRefreshing}
-            >
-              <RefreshCw
-                className={`h-4 w-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`}
-              />
-              Refresh
-            </Button>
-
-            <Button variant="outline" size="sm">
-              <Download className="h-4 w-4 mr-2" />
-              Export
-            </Button>
-
-            <Button variant="outline" size="sm">
-              <Settings className="h-4 w-4" />
-            </Button>
-          </div>
-        </motion.div>
-
-        {/* Filters */}
-        <motion.div variants={itemVariants}>
-          <FilterPanel />
         </motion.div>
 
         {/* KPIs */}

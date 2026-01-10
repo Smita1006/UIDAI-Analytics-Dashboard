@@ -62,20 +62,14 @@ export function TimeSeriesAnalysis({ data }: TimeSeriesAnalysisProps) {
         ]);
 
         if (dailyResponse.status === "fulfilled") {
-          console.log('Daily response:', dailyResponse.value);
           setTimeSeriesData(dailyResponse.value);
-        } else {
-          console.error('Daily data failed:', dailyResponse.reason);
         }
 
         if (weeklyResponse.status === "fulfilled") {
-          console.log('Weekly response:', weeklyResponse.value);
           setWeeklyData(weeklyResponse.value);
-        } else {
-          console.error('Weekly data failed:', weeklyResponse.reason);
         }
       } catch (error) {
-        console.error('Error loading time series data:', error);
+        // Error loading time series data
       } finally {
         setIsLoading(false);
       }
@@ -86,12 +80,11 @@ export function TimeSeriesAnalysis({ data }: TimeSeriesAnalysisProps) {
 
   const processChartData = () => {
     if (!timeSeriesData?.daily_trends && !timeSeriesData?.data?.daily_trends) {
-      console.log('No daily trends data available:', timeSeriesData);
       return [];
     }
 
-    const trends = timeSeriesData?.daily_trends || timeSeriesData?.data?.daily_trends || [];
-    console.log('Processing trends:', trends);
+    const trends =
+      timeSeriesData?.daily_trends || timeSeriesData?.data?.daily_trends || [];
 
     return trends.map((day: any) => ({
       date: new Date(day.date).toLocaleDateString("en-US", {
@@ -105,24 +98,25 @@ export function TimeSeriesAnalysis({ data }: TimeSeriesAnalysisProps) {
       enrollment: day.enrollment_count || 0,
       growth_rate: day.growth_rate || 0,
       // Calculate ratios
-      biometric_ratio: day.biometric_count && day.total_count
-        ? (day.biometric_count / day.total_count) * 100
-        : 0,
-      demographic_ratio: day.demographic_count && day.total_count
-        ? (day.demographic_count / day.total_count) * 100
-        : 0,
+      biometric_ratio:
+        day.biometric_count && day.total_count
+          ? (day.biometric_count / day.total_count) * 100
+          : 0,
+      demographic_ratio:
+        day.demographic_count && day.total_count
+          ? (day.demographic_count / day.total_count) * 100
+          : 0,
     }));
   };
 
   const processWeeklyData = () => {
     if (!weeklyData?.weekly_patterns && !weeklyData?.data?.weekly_patterns) {
-      console.log('No weekly patterns data available:', weeklyData);
       return [];
     }
 
-    const patterns = weeklyData?.weekly_patterns || weeklyData?.data?.weekly_patterns || [];
-    console.log('Processing weekly patterns:', patterns);
-    
+    const patterns =
+      weeklyData?.weekly_patterns || weeklyData?.data?.weekly_patterns || [];
+
     const days = [
       "Monday",
       "Tuesday",
@@ -132,7 +126,7 @@ export function TimeSeriesAnalysis({ data }: TimeSeriesAnalysisProps) {
       "Saturday",
       "Sunday",
     ];
-    
+
     return patterns.map((pattern: any, index: number) => ({
       day: days[index] || `Day ${index + 1}`,
       average_volume: pattern.average_volume || 0,
@@ -375,7 +369,9 @@ export function TimeSeriesAnalysis({ data }: TimeSeriesAnalysisProps) {
                       return item ? `Date: ${item.fullDate}` : value;
                     }}
                     formatter={(value: any, name: string) => [
-                      typeof value === "number" ? value.toLocaleString() : value,
+                      typeof value === "number"
+                        ? value.toLocaleString()
+                        : value,
                       name === "total"
                         ? "Total Volume"
                         : name === "biometric"
@@ -417,8 +413,12 @@ export function TimeSeriesAnalysis({ data }: TimeSeriesAnalysisProps) {
             ) : (
               <div className="flex items-center justify-center h-64 text-muted-foreground">
                 <div className="text-center">
-                  <div className="text-lg font-medium">No time series data available</div>
-                  <div className="text-sm">Check if the backend is running and data is loaded</div>
+                  <div className="text-lg font-medium">
+                    No time series data available
+                  </div>
+                  <div className="text-sm">
+                    Check if the backend is running and data is loaded
+                  </div>
                 </div>
               </div>
             )}
@@ -444,7 +444,9 @@ export function TimeSeriesAnalysis({ data }: TimeSeriesAnalysisProps) {
                   <YAxis tick={{ fontSize: 12 }} />
                   <Tooltip
                     formatter={(value: any, name: string) => [
-                      typeof value === "number" ? value.toLocaleString() : value,
+                      typeof value === "number"
+                        ? value.toLocaleString()
+                        : value,
                       name === "average_volume"
                         ? "Average Volume"
                         : name === "activity_score"
@@ -458,11 +460,23 @@ export function TimeSeriesAnalysis({ data }: TimeSeriesAnalysisProps) {
                   <Bar
                     dataKey="average_volume"
                     fill="#3b82f6"
-                  name="Average Volume"
-                  radius={[4, 4, 0, 0]}
-                />
-              </BarChart>
-            </ResponsiveContainer>
+                    name="Average Volume"
+                    radius={[4, 4, 0, 0]}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-64 text-muted-foreground">
+                <div className="text-center">
+                  <div className="text-lg font-medium">
+                    No weekly data available
+                  </div>
+                  <div className="text-sm">
+                    Check if the backend is running and data is loaded
+                  </div>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

@@ -15,6 +15,7 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { MapPin, BarChart3, Globe, Filter, Layers } from "lucide-react";
 import { InteractiveMap } from "./interactive-map";
 import { apiClient } from "@/lib/api-client";
+import { useDashboardStore } from "@/store/dashboard-store";
 
 interface GeographicTabProps {
   data?: any;
@@ -27,7 +28,10 @@ export function GeographicTab({ data }: GeographicTabProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedState, setSelectedState] = useState<string | null>(null);
   const [selectedView, setSelectedView] = useState("states");
-  const [showAllStates, setShowAllStates] = useState(false);
+  const [showAllStates, setShowAllStates] = useState(true);
+
+  // Get filters from the store
+  const { filters } = useDashboardStore();
 
   useEffect(() => {
     const loadGeographicData = async () => {
@@ -206,7 +210,20 @@ export function GeographicTab({ data }: GeographicTabProps) {
             Geographic distribution and performance analysis of UIDAI services
             across India
             {statesData?.states &&
-              ` • ${statesData.states.length} states analyzed`}
+              ` • ${
+                statesData.states.filter((state: any) => {
+                  if (filters.selectedStates.length > 0) {
+                    return filters.selectedStates.includes(state.name);
+                  }
+                  return true;
+                }).length
+              } states shown`}
+            {filters.selectedStates.length > 0 && (
+              <Badge variant="outline" className="ml-2">
+                Filtered by {filters.selectedStates.length} state
+                {filters.selectedStates.length !== 1 ? "s" : ""}
+              </Badge>
+            )}
           </CardDescription>
         </CardHeader>
       </Card>
@@ -235,6 +252,13 @@ export function GeographicTab({ data }: GeographicTabProps) {
               </div>
 
               {statesData.states
+                .filter((state: any) => {
+                  // Apply state filter if any states are selected
+                  if (filters.selectedStates.length > 0) {
+                    return filters.selectedStates.includes(state.name);
+                  }
+                  return true;
+                })
                 .slice(0, showAllStates ? undefined : 15)
                 .map((state: any, index: number) => (
                   <div
@@ -309,7 +333,7 @@ export function GeographicTab({ data }: GeographicTabProps) {
                     onClick={() => setShowAllStates(!showAllStates)}
                   >
                     {showAllStates
-                      ? "Show Top 15 States"
+                      ? `Show Top 15 States (of ${statesData.states.length})`
                       : `View All ${statesData.states.length} States`}
                   </Button>
                 </div>
