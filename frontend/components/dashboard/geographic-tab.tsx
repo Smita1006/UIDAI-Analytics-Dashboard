@@ -27,6 +27,7 @@ export function GeographicTab({ data }: GeographicTabProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedState, setSelectedState] = useState<string | null>(null);
   const [selectedView, setSelectedView] = useState("states");
+  const [showAllStates, setShowAllStates] = useState(false);
 
   useEffect(() => {
     const loadGeographicData = async () => {
@@ -234,7 +235,7 @@ export function GeographicTab({ data }: GeographicTabProps) {
               </div>
 
               {statesData.states
-                .slice(0, 15)
+                .slice(0, showAllStates ? undefined : 15)
                 .map((state: any, index: number) => (
                   <div
                     key={state.name || index}
@@ -302,8 +303,15 @@ export function GeographicTab({ data }: GeographicTabProps) {
 
               {statesData.states.length > 15 && (
                 <div className="text-center py-4">
-                  <Button variant="outline" size="sm">
-                    View All {statesData.states.length} States
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setShowAllStates(!showAllStates)}
+                  >
+                    {showAllStates 
+                      ? 'Show Top 15 States' 
+                      : `View All ${statesData.states.length} States`
+                    }
                   </Button>
                 </div>
               )}

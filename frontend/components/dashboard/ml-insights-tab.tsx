@@ -53,22 +53,25 @@ export function MLInsightsTab({ data }: MLInsightsTabProps) {
     const loadMLResults = async () => {
       try {
         // Load comprehensive insights
-        const insights = await apiClient.getComprehensiveInsights();
-        setComprehensiveInsights(insights);
-
-        // Load pattern insights
-        const patterns = await apiClient.getPatternInsights();
-        setPatternInsights(patterns);
-
-        // Load recommendations
-        const recs = await apiClient.getSystemRecommendations();
-        setRecommendations(recs);
-
-        // Try to load cached results first
-        const [anomalies, forecast] = await Promise.allSettled([
+        const [insights, patterns, recs, anomalies, forecast] = await Promise.allSettled([
+          apiClient.getComprehensiveInsights(),
+          apiClient.getPatternInsights(), 
+          apiClient.getSystemRecommendations(),
           apiClient.detectAnomalies(0.1),
           apiClient.generateForecast(7),
         ]);
+
+        if (insights.status === "fulfilled") {
+          setComprehensiveInsights(insights.value);
+        }
+
+        if (patterns.status === "fulfilled") {
+          setPatternInsights(patterns.value);
+        }
+
+        if (recs.status === "fulfilled") {
+          setRecommendations(recs.value);
+        }
 
         if (anomalies.status === "fulfilled") {
           setAnomalyResults(anomalies.value);
@@ -92,7 +95,7 @@ export function MLInsightsTab({ data }: MLInsightsTabProps) {
       const result = await apiClient.detectAnomalies(0.1);
       setAnomalyResults(result);
     } catch (error) {
-      console.error("Anomaly detection failed:", error);
+      // Anomaly detection failed
     }
   };
 
@@ -101,7 +104,16 @@ export function MLInsightsTab({ data }: MLInsightsTabProps) {
       const result = await apiClient.generateForecast(7);
       setForecastResults(result);
     } catch (error) {
-      console.error("Forecast generation failed:", error);
+      // Forecast generation failed
+    }
+  };
+
+  const handleRunClustering = async () => {
+    try {
+      const result = await apiClient.runClustering(5);
+      setClusterResults(result);
+    } catch (error) {
+      // Clustering failed
     }
   };
 
@@ -393,7 +405,7 @@ export function MLInsightsTab({ data }: MLInsightsTabProps) {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {forecastResults.predictions?.map((pred: any, index: number) => (
+              {(forecastResults.predictions || forecastResults.forecast)?.map((pred: any, index: number) => (
                 <div
                   key={index}
                   className="flex items-center justify-between p-4 border rounded-lg"
@@ -409,7 +421,7 @@ export function MLInsightsTab({ data }: MLInsightsTabProps) {
                       {pred.predicted_volume?.toLocaleString() || "N/A"}
                     </div>
                     <div className="text-sm text-muted-foreground">
-                      ±{pred.confidence_interval || "10"}% confidence
+                      ±{(pred.confidence_interval || pred.confidence_level || 10) * 100}% confidence
                     </div>
                   </div>
                 </div>

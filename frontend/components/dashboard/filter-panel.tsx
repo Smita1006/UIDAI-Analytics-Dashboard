@@ -39,7 +39,7 @@ export function FilterPanel() {
   )
 
   const topStates = ['Maharashtra', 'Uttar Pradesh', 'Bihar', 'West Bengal', 'Madhya Pradesh']
-  const serviceTypes = ['biometric', 'demographic', 'enrolment']
+  const serviceTypes = ['biometric', 'demographic', 'enrollment']
 
   return (
     <Card className="w-full">

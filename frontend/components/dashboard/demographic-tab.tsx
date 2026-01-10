@@ -85,40 +85,66 @@ export function DemographicTab({ data }: DemographicTabProps) {
   };
 
   const prepareAgeChartData = () => {
-    if (!ageDistribution?.overall) return [];
-
-    const overall = ageDistribution.overall;
+    const overall = ageDistribution?.overall || ageDistribution?.data?.overall;
+    if (!overall) {
+      return [];
+    }
+    
     return [
       {
         name: "Young (5-17)",
-        value: overall.young_count || 0,
+        value: overall.young_count || overall.young_total || 0,
         percentage: overall.young_percentage || 0,
         color: getAgeGroupColor(0),
       },
       {
         name: "Adult (18+)",
-        value: overall.adult_count || 0,
-        percentage: overall.adult_percentage || 0,
+        value: overall.adult_count || overall.adult_total || 0,
+        percentage: overall.adult_percentage || (100 - (overall.young_percentage || 0)),
         color: getAgeGroupColor(1),
       },
     ];
   };
 
   const prepareServicePreferenceData = () => {
-    if (!servicePreferences?.age_preferences) return [];
+    // Check for data in multiple possible locations
+    let preferences = servicePreferences?.age_preferences || 
+                     servicePreferences?.data?.age_preferences || 
+                     servicePreferences;
+                     
+    // If we got the raw servicePreferences data and it has biometric/demographic/enrolment directly
+    if (preferences && preferences.biometric && preferences.demographic) {
+      // Use it directly
+    } else if (!preferences || typeof preferences !== 'object') {
+      return [];
+    }
 
-    return Object.entries(servicePreferences.age_preferences).map(
-      ([service, data]: [string, any]) => ({
-        service: service
-          .replace("_", " ")
-          .replace(/\b\w/g, (l) => l.toUpperCase()),
-        young: data.young_count || 0,
-        adult: data.adult_count || 0,
-        total: data.total_count || 0,
-        young_percentage: data.young_percentage || 0,
-        adult_percentage: data.adult_percentage || 0,
+    // Handle the case where enrolment is used instead of enrollment
+    const processedPreferences = { ...preferences };
+    if (preferences.enrolment && !preferences.enrollment) {
+      processedPreferences.enrollment = preferences.enrolment;
+    }
+
+    return Object.entries(processedPreferences).map(
+      ([service, data]: [string, any]) => {
+        // Skip if data is not an object with the expected structure
+        if (!data || typeof data !== 'object' || (!data.young_count && typeof data.young_count !== 'number')) {
+          return null;
+        }
+        
+        return {
+          service: service
+            .replace("_", " ")
+            .replace(/enrolment/i, "enrollment")
+            .replace(/\b\w/g, (l) => l.toUpperCase()),
+          young: data.young_count || 0,
+          adult: data.adult_count || 0,
+          total: data.total_count || 0,
+          young_percentage: data.young_percentage || 0,
+          adult_percentage: data.adult_percentage || 0,
+        };
       })
-    );
+      .filter(item => item !== null); // Filter out null entries
   };
 
   if (isLoading) {
@@ -270,7 +296,7 @@ export function DemographicTab({ data }: DemographicTabProps) {
       )}
 
       {/* Service Preferences by Age */}
-      {servicePreferences?.age_preferences && (
+      {servicePreferences && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
@@ -298,25 +324,21 @@ export function DemographicTab({ data }: DemographicTabProps) {
                     <Tooltip
                       formatter={(value: any, name: string) => [
                         value.toLocaleString(),
-                        `Age ${name.replace("_", "-")}`,
+                        name === "young" ? "Young (5-17)" : name === "adult" ? "Adult (18+)" : name,
                       ]}
                     />
                     <Legend />
 
-                    {/* Dynamically render bars for each age group */}
-                    {ageDistribution?.age_groups &&
-                      Object.keys(ageDistribution.age_groups).map(
-                        (ageGroup, index) => (
-                          <Bar
-                            key={ageGroup}
-                            dataKey={ageGroup}
-                            fill={getAgeGroupColor(index)}
-                            name={ageGroup
-                              .replace("_", "-")
-                              .replace("greater", "+")}
-                          />
-                        )
-                      )}
+                    <Bar
+                      dataKey="young"
+                      fill="#3b82f6"
+                      name="Young (5-17)"
+                    />
+                    <Bar
+                      dataKey="adult"
+                      fill="#8b5cf6"
+                      name="Adult (18+)"
+                    />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
