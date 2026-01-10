@@ -258,6 +258,120 @@ class DataService:
         
         return result
     
+    async def get_summary(self) -> Dict[str, Any]:
+        """Get comprehensive data summary"""
+        df = self.unified_data
+        
+        # Calculate summary stats
+        total_records = len(df)
+        biometric_records = len(df[df['service_type'] == 'biometric'])
+        demographic_records = len(df[df['service_type'] == 'demographic'])
+        enrollment_records = len(df[df['service_type'] == 'enrolment'])
+        
+        # Date range
+        start_date = df['date'].min().strftime('%Y-%m-%d') if not df.empty else 'N/A'
+        end_date = df['date'].max().strftime('%Y-%m-%d') if not df.empty else 'N/A'
+        
+        # State and district counts
+        unique_states = df['state'].nunique()
+        unique_districts = df['district'].nunique()
+        
+        return {
+            'total_records': total_records,
+            'biometric_updates': biometric_records,
+            'demographic_updates': demographic_records,
+            'enrollments': enrollment_records,
+            'start_date': start_date,
+            'end_date': end_date,
+            'unique_states': unique_states,
+            'unique_districts': unique_districts,
+            'days_of_data': (pd.to_datetime(end_date) - pd.to_datetime(start_date)).days + 1 if start_date != 'N/A' else 0
+        }
+    
+    async def get_age_distribution(self) -> Dict[str, Any]:
+        """Get age group distribution across all services"""
+        df = self.unified_data
+        
+        # Calculate age group totals
+        young_total = df['young_count'].sum()
+        adult_total = df['adult_count'].sum()
+        total_count = df['total_count'].sum()
+        
+        age_groups = {
+            '5-17 years': {
+                'count': int(young_total),
+                'percentage': (young_total / total_count * 100) if total_count > 0 else 0
+            },
+            '18+ years': {
+                'count': int(adult_total),
+                'percentage': (adult_total / total_count * 100) if total_count > 0 else 0
+            }
+        }
+        
+        # Add 0-5 years for enrollment data
+        if 'child_count' in df.columns:
+            child_total = df['child_count'].sum()
+            total_with_children = total_count + child_total
+            age_groups['0-5 years'] = {
+                'count': int(child_total),
+                'percentage': (child_total / total_with_children * 100) if total_with_children > 0 else 0
+            }
+            # Recalculate percentages
+            age_groups['5-17 years']['percentage'] = (young_total / total_with_children * 100) if total_with_children > 0 else 0
+            age_groups['18+ years']['percentage'] = (adult_total / total_with_children * 100) if total_with_children > 0 else 0
+        
+        return {
+            'age_groups': age_groups,
+            'total_analyzed': int(total_count)
+        }
+    
+    async def get_service_preferences(self) -> Dict[str, Any]:
+        """Get service preferences by age groups"""
+        df = self.unified_data
+        
+        # Group by service type and calculate age distributions
+        service_prefs = {}
+        
+        for service_type in df['service_type'].unique():
+            service_df = df[df['service_type'] == service_type]
+            
+            young_count = service_df['young_count'].sum()
+            adult_count = service_df['adult_count'].sum()
+            total_service = service_df['total_count'].sum()
+            
+            service_prefs[service_type] = {
+                'young_preference': (young_count / total_service * 100) if total_service > 0 else 0,
+                'adult_preference': (adult_count / total_service * 100) if total_service > 0 else 0,
+                'total_volume': int(total_service)
+            }
+        
+        # By age analysis
+        by_age = {
+            'young': {},
+            'adult': {}
+        }
+        
+        total_young = df['young_count'].sum()
+        total_adult = df['adult_count'].sum()
+        
+        for service_type in df['service_type'].unique():
+            service_df = df[df['service_type'] == service_type]
+            
+            young_in_service = service_df['young_count'].sum()
+            adult_in_service = service_df['adult_count'].sum()
+            
+            by_age['young'][service_type] = int(young_in_service)
+            by_age['adult'][service_type] = int(adult_in_service)
+        
+        return {
+            'by_service': service_prefs,
+            'by_age': by_age,
+            'summary': {
+                'total_young': int(total_young),
+                'total_adult': int(total_adult)
+            }
+        }
+
     def _aggregate_geographic_sync(self, df: pd.DataFrame, level: str, limit: int) -> List[Dict[str, Any]]:
         """Synchronous geographic aggregation"""
         if level == "state":

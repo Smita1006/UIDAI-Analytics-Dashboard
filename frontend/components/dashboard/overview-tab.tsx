@@ -1,130 +1,365 @@
-'use client'
+"use client";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Progress } from '@/components/ui/progress'
-import { BarChart3, PieChart, TrendingUp } from 'lucide-react'
+import { useState, useEffect } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import {
+  BarChart3,
+  PieChart,
+  TrendingUp,
+  Users,
+  Calendar,
+  Target,
+  MapPin,
+} from "lucide-react";
+import {
+  PieChart as RechartsPieChart,
+  Cell,
+  ResponsiveContainer,
+  Tooltip,
+  Legend,
+  Pie,
+} from "recharts";
+import { useApiData } from "@/hooks/use-api-data";
+import { apiClient } from "@/lib/api-client";
 
 interface OverviewTabProps {
-  data?: any
+  data?: any;
 }
 
 export function OverviewTab({ data }: OverviewTabProps) {
-  // Mock data for demo
-  const serviceDistribution = [
-    { service: 'Demographic Updates', count: 1598099, percentage: 36.8, color: 'bg-blue-500' },
-    { service: 'Biometric Updates', count: 1766212, percentage: 40.6, color: 'bg-green-500' },
-    { service: 'New Enrollments', count: 983072, percentage: 22.6, color: 'bg-purple-500' }
-  ]
+  const { summary, kpis, loading, error } = useApiData();
+  const [geoData, setGeoData] = useState<any>(null);
+  const [isLoadingGeo, setIsLoadingGeo] = useState(true);
 
-  const topStates = [
-    { state: 'Maharashtra', count: 524832, percentage: 12.1 },
-    { state: 'Uttar Pradesh', count: 487291, percentage: 11.2 },
-    { state: 'Karnataka', count: 398742, percentage: 9.2 },
-    { state: 'Tamil Nadu', count: 356189, percentage: 8.2 },
-    { state: 'Gujarat', count: 324567, percentage: 7.5 }
-  ]
+  useEffect(() => {
+    const loadGeographicData = async () => {
+      try {
+        const response = await apiClient.getGeographicOverview();
+        setGeoData(response);
+      } catch (error) {
+        console.error("Error loading geographic data:", error);
+      } finally {
+        setIsLoadingGeo(false);
+      }
+    };
 
-  const insights = [
-    {
-      title: 'Peak Activity Day',
-      value: 'Monday',
-      description: '25% higher than average',
-      icon: TrendingUp
-    },
-    {
-      title: 'Youth Preference',
-      value: 'Biometric 3:1',
-      description: 'Age 5-17 prefer biometric updates',
-      icon: BarChart3
-    },
-    {
-      title: 'Regional Leader',
-      value: 'Maharashtra',
-      description: '40% above national average',
-      icon: PieChart
+    loadGeographicData();
+  }, []);
+
+  if (loading || isLoadingGeo) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <LoadingSpinner />
+        <span className="ml-3 text-muted-foreground">Loading overview...</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center p-8">
+        <p className="text-red-500">Error loading data: {error}</p>
+      </div>
+    );
+  }
+
+  const summaryData = summary || {};
+  const kpisData = kpis || {};
+  const geoOverview = geoData || {};
+
+  const getServiceDistribution = () => {
+    const bio = kpisData.biometric_updates || 0;
+    const demo = kpisData.demographic_updates || 0;
+    const enrollment = kpisData.new_enrollments || 0;
+
+    return [
+      { name: "Biometric Updates", value: bio, color: "#3b82f6" },
+      { name: "Demographic Updates", value: demo, color: "#10b981" },
+      { name: "New Enrollments", value: enrollment, color: "#f59e0b" },
+    ].filter((item) => item.value > 0);
+  };
+
+  const getTopStates = () => {
+    if (!geoOverview.states) return [];
+
+    return geoOverview.states.slice(0, 5).map((state: any) => ({
+      name: state.name,
+      volume: state.volume,
+      risk: state.risk,
+    }));
+  };
+
+  const generateInsights = () => {
+    const insights = [];
+
+    // Total activity insight
+    const totalTransactions = kpisData.total_transactions || 0;
+    if (totalTransactions > 0) {
+      insights.push({
+        title: "Total Activity",
+        value: totalTransactions.toLocaleString(),
+        description: `Across ${summaryData.unique_states || 0} states`,
+        icon: BarChart3,
+      });
     }
-  ]
+
+    // Geographic distribution insight
+    const totalStates = geoOverview.total_states || 0;
+    if (totalStates > 0) {
+      insights.push({
+        title: "Geographic Coverage",
+        value: `${totalStates} States`,
+        description: `${
+          geoOverview.summary?.high_risk_states || 0
+        } high-risk areas`,
+        icon: MapPin,
+      });
+    }
+
+    // Service preference insight
+    const serviceDistribution = getServiceDistribution();
+    const topService = serviceDistribution.reduce(
+      (max, service) => (service.value > max.value ? service : max),
+      serviceDistribution[0] || { name: "N/A", value: 0 }
+    );
+
+    if (topService.name !== "N/A") {
+      const percentage =
+        totalTransactions > 0
+          ? (topService.value / totalTransactions) * 100
+          : 0;
+      insights.push({
+        title: "Most Popular Service",
+        value: topService.name.replace(" Updates", ""),
+        description: `${percentage.toFixed(1)}% of all transactions`,
+        icon: Target,
+      });
+    }
+
+    // Daily average insight
+    const dailyAverage = kpisData.daily_average || 0;
+    if (dailyAverage > 0) {
+      insights.push({
+        title: "Daily Average",
+        value: dailyAverage.toLocaleString(),
+        description: `Over ${summaryData.days_of_data || 0} days`,
+        icon: Calendar,
+      });
+    }
+
+    return insights;
+  };
+
+  const serviceDistribution = getServiceDistribution();
+  const topStates = getTopStates();
+  const insights = generateInsights();
 
   return (
     <div className="space-y-6">
-      {/* Service Distribution */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <Card className="col-span-2">
-          <CardHeader>
-            <CardTitle>Service Distribution</CardTitle>
-            <CardDescription>
-              Breakdown of UIDAI services across 4.3M+ records
-            </CardDescription>
+      {/* KPI Cards */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Total Transactions
+            </CardTitle>
+            <BarChart3 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent className="space-y-4">
-            {serviceDistribution.map((service) => (
-              <div key={service.service} className="space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-sm font-medium">{service.service}</span>
-                  <span className="text-sm text-muted-foreground">
-                    {service.count.toLocaleString()} ({service.percentage}%)
-                  </span>
-                </div>
-                <Progress value={service.percentage} className="h-2" />
-              </div>
-            ))}
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {(kpisData.total_transactions || 0).toLocaleString()}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Across {summaryData.days_of_data || 0} days
+            </p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader>
-            <CardTitle>Key Insights</CardTitle>
-            <CardDescription>
-              Actionable intelligence from data analysis
-            </CardDescription>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Biometric Updates
+            </CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent className="space-y-4">
-            {insights.map((insight) => {
-              const Icon = insight.icon
-              return (
-                <div key={insight.title} className="flex items-start space-x-3">
-                  <Icon className="h-4 w-4 text-muted-foreground mt-1" />
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium">{insight.title}</p>
-                    <p className="text-sm font-semibold text-primary">{insight.value}</p>
-                    <p className="text-xs text-muted-foreground">{insight.description}</p>
-                  </div>
-                </div>
-              )
-            })}
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {(kpisData.biometric_updates || 0).toLocaleString()}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {(kpisData.bio_ratio || 0).toFixed(1)}% of total
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Demographic Updates
+            </CardTitle>
+            <PieChart className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {(kpisData.demographic_updates || 0).toLocaleString()}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {(kpisData.demo_ratio || 0).toFixed(1)}% of total
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              New Enrollments
+            </CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {(kpisData.new_enrollments || 0).toLocaleString()}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {(kpisData.enrollment_ratio || 0).toFixed(1)}% of total
+            </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Top Performing States */}
+      <div className="grid gap-6 md:grid-cols-2">
+        {/* Service Distribution Chart */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Service Type Distribution</CardTitle>
+            <CardDescription>Breakdown of transaction types</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {serviceDistribution.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <RechartsPieChart>
+                  <Pie
+                    data={serviceDistribution}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={100}
+                    paddingAngle={5}
+                    dataKey="value"
+                  >
+                    {serviceDistribution.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value: number) => [value.toLocaleString(), ""]}
+                  />
+                  <Legend />
+                </RechartsPieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-[300px] text-muted-foreground">
+                No data available
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Top States */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Top States by Volume</CardTitle>
+            <CardDescription>
+              States with highest transaction volumes
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {topStates.length > 0 ? (
+              <div className="space-y-4">
+                {topStates.map((state, index) => (
+                  <div
+                    key={state.name}
+                    className="flex items-center justify-between"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <span className="text-sm font-medium">#{index + 1}</span>
+                      <div>
+                        <div className="text-sm font-medium">{state.name}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {state.volume.toLocaleString()} transactions
+                        </div>
+                      </div>
+                    </div>
+                    <Badge
+                      variant="outline"
+                      className={
+                        state.risk === "high"
+                          ? "text-red-700 border-red-300"
+                          : state.risk === "medium"
+                          ? "text-yellow-700 border-yellow-300"
+                          : "text-green-700 border-green-300"
+                      }
+                    >
+                      {state.risk}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex items-center justify-center h-[200px] text-muted-foreground">
+                No state data available
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Key Insights */}
       <Card>
         <CardHeader>
-          <CardTitle>Top Performing States</CardTitle>
+          <CardTitle>Key Insights</CardTitle>
           <CardDescription>
-            States with highest UIDAI service volume
+            Automatically generated insights from your data
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-            {topStates.map((state, index) => (
-              <div key={state.state} className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">{state.state}</span>
-                  <Badge variant={index < 2 ? 'default' : 'secondary'}>
-                    #{index + 1}
-                  </Badge>
-                </div>
-                <div className="text-2xl font-bold">{state.count.toLocaleString()}</div>
-                <div className="text-sm text-muted-foreground">
-                  {state.percentage}% of total volume
-                </div>
-                <Progress value={state.percentage * 2} className="h-1" />
-              </div>
-            ))}
-          </div>
+          {insights.length > 0 ? (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              {insights.map((insight, index) => {
+                const Icon = insight.icon;
+                return (
+                  <div key={index} className="p-4 border rounded-lg">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <Icon className="h-4 w-4 text-primary" />
+                      <span className="text-sm font-medium">
+                        {insight.title}
+                      </span>
+                    </div>
+                    <div className="text-xl font-bold mb-1">
+                      {insight.value}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {insight.description}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              No insights available
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

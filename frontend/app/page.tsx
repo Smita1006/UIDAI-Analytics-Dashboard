@@ -1,35 +1,35 @@
-'use client'
+"use client";
 
-import { useState, useEffect } from 'react'
-import { motion } from 'framer-motion'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Separator } from '@/components/ui/separator'
-import { 
-  BarChart3, 
-  Map, 
-  TrendingUp, 
-  Users, 
-  Brain, 
+import { useState, useEffect } from "react";
+import { motion } from "framer-motion";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import {
+  BarChart3,
+  Map,
+  TrendingUp,
+  Users,
+  Brain,
   AlertTriangle,
   RefreshCw,
   Download,
-  Settings
-} from 'lucide-react'
+  Settings,
+} from "lucide-react";
 
 // Import our custom components
-import { DashboardHeader } from '@/components/dashboard/header'
-import { KPICards } from '@/components/dashboard/kpi-cards'
-import { OverviewTab } from '@/components/dashboard/overview-tab'
-import { GeographicTab } from '@/components/dashboard/geographic-tab'
-import { TemporalTab } from '@/components/dashboard/temporal-tab'
-import { DemographicTab } from '@/components/dashboard/demographic-tab'
-import { MLInsightsTab } from '@/components/dashboard/ml-insights-tab'
-import { FilterPanel } from '@/components/dashboard/filter-panel'
-import { LoadingSpinner } from '@/components/ui/loading-spinner'
-import { useApiData } from '@/hooks/use-api-data'
-import { useDashboardStore } from '@/store/dashboard-store'
+import { DashboardHeader } from "@/components/dashboard/header";
+import { KPICards } from "@/components/dashboard/kpi-cards";
+import { OverviewTab } from "@/components/dashboard/overview-tab";
+import { GeographicTab } from "@/components/dashboard/geographic-tab";
+import { TemporalTab } from "@/components/dashboard/temporal-tab";
+import { DemographicTab } from "@/components/dashboard/demographic-tab";
+import { MLInsightsTab } from "@/components/dashboard/ml-insights-tab";
+import { FilterPanel } from "@/components/dashboard/filter-panel";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { useApiData } from "@/hooks/use-api-data";
+import { useDashboardStore } from "@/store/dashboard-store";
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -37,81 +37,79 @@ const containerVariants = {
     opacity: 1,
     transition: {
       delayChildren: 0.1,
-      staggerChildren: 0.1
-    }
-  }
-}
+      staggerChildren: 0.1,
+    },
+  },
+};
 
 const itemVariants = {
   hidden: { y: 20, opacity: 0 },
   visible: {
     y: 0,
     opacity: 1,
-    transition: { duration: 0.5 }
-  }
-}
+    transition: { duration: 0.5 },
+  },
+};
 
 export default function Dashboard() {
-  const [activeTab, setActiveTab] = useState('overview')
-  const [isRefreshing, setIsRefreshing] = useState(false)
-  
-  const { filters, updateFilters, clearFilters } = useDashboardStore()
-  
-  const { 
-    summary, 
-    kpis, 
-    states, 
-    loading, 
-    error,
-    refreshData 
-  } = useApiData()
+  const [activeTab, setActiveTab] = useState("overview");
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const { filters, updateFilters, clearFilters } = useDashboardStore();
+
+  const { summary, kpis, states, loading, error, refreshData } = useApiData();
 
   const handleRefresh = async () => {
-    setIsRefreshing(true)
+    setIsRefreshing(true);
     try {
-      await refreshData()
+      await refreshData();
     } finally {
-      setIsRefreshing(false)
+      setIsRefreshing(false);
     }
-  }
+  };
 
   const tabs = [
-    { id: 'overview', label: 'Overview', icon: BarChart3 },
-    { id: 'geographic', label: 'Geographic', icon: Map },
-    { id: 'temporal', label: 'Temporal', icon: TrendingUp },
-    { id: 'demographic', label: 'Demographics', icon: Users },
-    { id: 'ml-insights', label: 'ML Insights', icon: Brain },
-  ]
+    { id: "overview", label: "Overview", icon: BarChart3 },
+    { id: "geographic", label: "Geographic", icon: Map },
+    { id: "temporal", label: "Temporal", icon: TrendingUp },
+    { id: "demographic", label: "Demographics", icon: Users },
+    { id: "ml-insights", label: "ML Insights", icon: Brain },
+  ];
 
   if (loading && !summary) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
         <div className="text-center">
           <LoadingSpinner size="lg" />
-          <p className="mt-4 text-lg font-medium text-gray-700">Loading UIDAI Analytics Dashboard...</p>
+          <p className="mt-4 text-lg font-medium text-gray-700">
+            Loading UIDAI Analytics Dashboard...
+          </p>
           <p className="mt-2 text-sm text-gray-500">Processing 2M+ records</p>
         </div>
       </div>
-    )
+    );
   }
 
   return (
-    <motion.div 
+    <motion.div
       className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50"
       variants={containerVariants}
       initial="hidden"
       animate="visible"
     >
       <DashboardHeader />
-      
+
       <main className="container mx-auto p-6 space-y-6">
         {/* Action Bar */}
-        <motion.div 
+        <motion.div
           variants={itemVariants}
           className="flex items-center justify-between"
         >
           <div className="flex items-center space-x-4">
-            <Badge variant="secondary" className="bg-green-100 text-green-800 border-green-200">
+            <Badge
+              variant="secondary"
+              className="bg-green-100 text-green-800 border-green-200"
+            >
               <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
               Live Data
             </Badge>
@@ -121,7 +119,7 @@ export default function Dashboard() {
               </Badge>
             )}
           </div>
-          
+
           <div className="flex items-center space-x-2">
             <Button
               variant="outline"
@@ -129,15 +127,17 @@ export default function Dashboard() {
               onClick={handleRefresh}
               disabled={isRefreshing}
             >
-              <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+              <RefreshCw
+                className={`h-4 w-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`}
+              />
               Refresh
             </Button>
-            
+
             <Button variant="outline" size="sm">
               <Download className="h-4 w-4 mr-2" />
               Export
             </Button>
-            
+
             <Button variant="outline" size="sm">
               <Settings className="h-4 w-4" />
             </Button>
@@ -151,49 +151,53 @@ export default function Dashboard() {
 
         {/* KPIs */}
         <motion.div variants={itemVariants}>
-          <KPICards kpis={kpis} loading={loading} />
+          <KPICards
+            totalRecords={kpis?.data?.total_records}
+            activeStates={kpis?.data?.active_states}
+            avgDailyVolume={kpis?.data?.avg_daily_volume}
+            completionRate={kpis?.data?.completion_rate}
+          />
         </motion.div>
 
         {/* Main Dashboard */}
         <motion.div variants={itemVariants}>
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+          <Tabs
+            value={activeTab}
+            onValueChange={setActiveTab}
+            className="space-y-6"
+          >
             <TabsList className="grid grid-cols-5 w-full bg-white shadow-sm">
               {tabs.map((tab) => {
-                const Icon = tab.icon
+                const Icon = tab.icon;
                 return (
-                  <TabsTrigger 
+                  <TabsTrigger
                     key={tab.id}
-                    value={tab.id} 
+                    value={tab.id}
                     className="flex items-center gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700"
                   >
                     <Icon className="h-4 w-4" />
                     <span className="hidden sm:inline">{tab.label}</span>
                   </TabsTrigger>
-                )
+                );
               })}
             </TabsList>
 
             {/* Tab Contents */}
             <div className="bg-white rounded-lg shadow-sm border">
               <TabsContent value="overview" className="p-6 space-y-6">
-                <OverviewTab 
-                  summary={summary}
-                  kpis={kpis}
-                  filters={filters}
-                  loading={loading}
-                />
+                <OverviewTab data={summary} />
               </TabsContent>
 
               <TabsContent value="geographic" className="p-6 space-y-6">
-                <GeographicTab filters={filters} />
+                <GeographicTab data={summary} />
               </TabsContent>
 
               <TabsContent value="temporal" className="p-6 space-y-6">
-                <TemporalTab filters={filters} />
+                <TemporalTab data={summary} />
               </TabsContent>
 
               <TabsContent value="demographic" className="p-6 space-y-6">
-                <DemographicTab filters={filters} />
+                <DemographicTab data={summary} />
               </TabsContent>
 
               <TabsContent value="ml-insights" className="p-6 space-y-6">
@@ -205,7 +209,7 @@ export default function Dashboard() {
 
         {/* Error Handling */}
         {error && (
-          <motion.div 
+          <motion.div
             variants={itemVariants}
             className="bg-red-50 border border-red-200 rounded-lg p-4"
           >
@@ -214,9 +218,9 @@ export default function Dashboard() {
               <span className="font-medium">Error loading data</span>
             </div>
             <p className="mt-1 text-sm text-red-600">{error}</p>
-            <Button 
-              variant="outline" 
-              size="sm" 
+            <Button
+              variant="outline"
+              size="sm"
               className="mt-3"
               onClick={handleRefresh}
             >
@@ -243,5 +247,5 @@ export default function Dashboard() {
         </div>
       </footer>
     </motion.div>
-  )
+  );
 }

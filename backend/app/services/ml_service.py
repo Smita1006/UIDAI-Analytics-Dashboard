@@ -1659,3 +1659,83 @@ class MLService:
         except Exception as e:
             logger.error(f"Error generating recommendations: {e}")
             return {'success': False, 'error': str(e)}
+    
+    async def save_all_models(self):
+        """Save all trained models to disk for persistence"""
+        try:
+            saved_models = []
+            self.model_path.mkdir(parents=True, exist_ok=True)
+            
+            # Save models
+            for model_name, model in self.models.items():
+                if model is not None:
+                    model_file = self.model_path / f"{model_name}_model.pkl"
+                    await asyncio.to_thread(joblib.dump, model, model_file)
+                    saved_models.append(model_name)
+                    logger.info(f"Saved {model_name} model to {model_file}")
+            
+            # Save scalers
+            saved_scalers = []
+            for scaler_name, scaler in self.scalers.items():
+                if scaler is not None:
+                    scaler_file = self.model_path / f"{scaler_name}_scaler.pkl"
+                    await asyncio.to_thread(joblib.dump, scaler, scaler_file)
+                    saved_scalers.append(scaler_name)
+                    logger.info(f"Saved {scaler_name} scaler to {scaler_file}")
+            
+            return {
+                'success': True,
+                'saved_models': saved_models,
+                'saved_scalers': saved_scalers,
+                'total_count': len(saved_models) + len(saved_scalers),
+                'save_path': str(self.model_path),
+                'timestamp': datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            logger.error(f"Error saving models: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    async def load_saved_models(self):
+        """Load previously saved models from disk"""
+        try:
+            loaded_models = []
+            loaded_scalers = []
+            
+            if not self.model_path.exists():
+                return {'success': False, 'error': 'Model directory does not exist'}
+            
+            # Load models
+            for model_file in self.model_path.glob("*_model.pkl"):
+                model_name = model_file.stem.replace('_model', '')
+                try:
+                    model = await asyncio.to_thread(joblib.load, model_file)
+                    self.models[model_name] = model
+                    loaded_models.append(model_name)
+                    logger.info(f"Loaded {model_name} model from {model_file}")
+                except Exception as e:
+                    logger.warning(f"Failed to load {model_name} model: {e}")
+            
+            # Load scalers
+            for scaler_file in self.model_path.glob("*_scaler.pkl"):
+                scaler_name = scaler_file.stem.replace('_scaler', '')
+                try:
+                    scaler = await asyncio.to_thread(joblib.load, scaler_file)
+                    self.scalers[scaler_name] = scaler
+                    loaded_scalers.append(scaler_name)
+                    logger.info(f"Loaded {scaler_name} scaler from {scaler_file}")
+                except Exception as e:
+                    logger.warning(f"Failed to load {scaler_name} scaler: {e}")
+            
+            return {
+                'success': True,
+                'loaded_models': loaded_models,
+                'loaded_scalers': loaded_scalers,
+                'total_count': len(loaded_models) + len(loaded_scalers),
+                'load_path': str(self.model_path),
+                'timestamp': datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            logger.error(f"Error loading models: {e}")
+            return {'success': False, 'error': str(e)}

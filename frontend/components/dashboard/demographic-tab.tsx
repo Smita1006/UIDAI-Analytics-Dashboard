@@ -1,257 +1,507 @@
-'use client'
+"use client";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Progress } from '@/components/ui/progress'
-import { Users, Baby, GraduationCap, User } from 'lucide-react'
+import { useState, useEffect } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { Button } from "@/components/ui/button";
+import {
+  Users,
+  Baby,
+  GraduationCap,
+  User,
+  PieChart,
+  BarChart3,
+  TrendingUp,
+} from "lucide-react";
+import {
+  PieChart as RechartsPieChart,
+  Cell,
+  ResponsiveContainer,
+  Tooltip,
+  Legend,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Pie,
+} from "recharts";
+import { apiClient } from "@/lib/api-client";
 
 interface DemographicTabProps {
-  data?: any
+  data?: any;
 }
 
 export function DemographicTab({ data }: DemographicTabProps) {
-  const ageDistribution = [
-    { 
-      ageGroup: '0-5 years', 
-      count: 983072, 
-      percentage: 22.6, 
-      primaryService: 'New Enrollment',
-      icon: Baby,
-      trend: '+18.3%'
-    },
-    { 
-      ageGroup: '5-17 years', 
-      count: 1456789, 
-      percentage: 33.5, 
-      primaryService: 'Biometric Update',
-      icon: GraduationCap,
-      trend: '+12.7%'
-    },
-    { 
-      ageGroup: '18+ years', 
-      count: 1907522, 
-      percentage: 43.9, 
-      primaryService: 'Demographic Update',
-      icon: User,
-      trend: '+8.9%'
-    }
-  ]
+  const [ageDistribution, setAgeDistribution] = useState<any>(null);
+  const [servicePreferences, setServicePreferences] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const servicePreferences = [
-    {
-      ageGroup: '5-17 years',
-      biometric: 75.3,
-      demographic: 24.7,
-      insight: 'Youth strongly prefer biometric updates (3:1 ratio)'
-    },
-    {
-      ageGroup: '18-35 years', 
-      biometric: 45.2,
-      demographic: 54.8,
-      insight: 'Working adults favor demographic updates for address changes'
-    },
-    {
-      ageGroup: '35+ years',
-      biometric: 38.7,
-      demographic: 61.3,
-      insight: 'Older adults primarily update personal information'
-    }
-  ]
+  useEffect(() => {
+    const loadDemographicData = async () => {
+      try {
+        setIsLoading(true);
 
-  const genderDistribution = [
-    { gender: 'Male', count: 2234567, percentage: 51.4 },
-    { gender: 'Female', count: 2112816, percentage: 48.6 }
-  ]
+        const [ageResponse, serviceResponse] = await Promise.allSettled([
+          apiClient.getAgeDistribution(),
+          apiClient.getServicePreferences(),
+        ]);
 
-  const urbanRural = [
-    { type: 'Urban', count: 2608430, percentage: 60.0, growth: '+15.2%' },
-    { type: 'Rural', count: 1738953, percentage: 40.0, growth: '+9.8%' }
-  ]
+        if (ageResponse.status === "fulfilled") {
+          setAgeDistribution(ageResponse.value);
+        }
 
-  const demographicInsights = [
-    {
-      title: 'Youth Digital Adoption',
-      value: '75%',
-      description: 'Age 5-17 prefer biometric over demographic updates',
-      highlight: true
-    },
-    {
-      title: 'Urban Growth Rate',
-      value: '+15.2%',
-      description: 'Cities showing higher enrollment activity',
-      highlight: false
-    },
-    {
-      title: 'Gender Parity',
-      value: '51.4% / 48.6%',
-      description: 'Balanced male-female service utilization',
-      highlight: false
-    },
-    {
-      title: 'Peak Age Group',
-      value: '18+ years',
-      description: '43.9% of all service requests',
-      highlight: true
-    }
-  ]
+        if (serviceResponse.status === "fulfilled") {
+          setServicePreferences(serviceResponse.value);
+        }
+      } catch (error) {
+        // Error loading demographic data
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadDemographicData();
+  }, []);
+
+  const getAgeGroupIcon = (ageGroup: string) => {
+    if (ageGroup.includes("0") || ageGroup.includes("5")) return Baby;
+    if (ageGroup.includes("17") || ageGroup.includes("teen"))
+      return GraduationCap;
+    return User;
+  };
+
+  const getAgeGroupColor = (index: number) => {
+    const colors = ["#8b5cf6", "#10b981", "#3b82f6", "#f59e0b"];
+    return colors[index % colors.length];
+  };
+
+  const prepareAgeChartData = () => {
+    if (!ageDistribution?.overall) return [];
+
+    const overall = ageDistribution.overall;
+    return [
+      {
+        name: "Young (5-17)",
+        value: overall.young_count || 0,
+        percentage: overall.young_percentage || 0,
+        color: getAgeGroupColor(0),
+      },
+      {
+        name: "Adult (18+)",
+        value: overall.adult_count || 0,
+        percentage: overall.adult_percentage || 0,
+        color: getAgeGroupColor(1),
+      },
+    ];
+  };
+
+  const prepareServicePreferenceData = () => {
+    if (!servicePreferences?.age_preferences) return [];
+
+    return Object.entries(servicePreferences.age_preferences).map(
+      ([service, data]: [string, any]) => ({
+        service: service
+          .replace("_", " ")
+          .replace(/\b\w/g, (l) => l.toUpperCase()),
+        young: data.young_count || 0,
+        adult: data.adult_count || 0,
+        total: data.total_count || 0,
+        young_percentage: data.young_percentage || 0,
+        adult_percentage: data.adult_percentage || 0,
+      })
+    );
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <LoadingSpinner />
+        <span className="ml-3 text-muted-foreground">
+          Loading demographic data...
+        </span>
+      </div>
+    );
+  }
+
+  const ageChartData = prepareAgeChartData();
+  const servicePreferenceData = prepareServicePreferenceData();
 
   return (
     <div className="space-y-6">
-      {/* Age Distribution */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Users className="h-5 w-5" />
-            <span>Age Group Distribution</span>
-          </CardTitle>
-          <CardDescription>
-            Service utilization patterns across different age segments
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-6 md:grid-cols-3">
-            {ageDistribution.map((group) => {
-              const Icon = group.icon
-              return (
-                <div key={group.ageGroup} className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      <Icon className="h-4 w-4 text-muted-foreground" />
-                      <span className="font-medium">{group.ageGroup}</span>
+      {/* Age Distribution Overview */}
+      {ageDistribution?.overall && (
+        <div className="grid gap-6 md:grid-cols-2">
+          {/* Age Distribution Cards */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Users className="h-5 w-5" />
+                <span>Age Group Distribution</span>
+              </CardTitle>
+              <CardDescription>
+                Service usage breakdown by age demographics
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex items-center space-x-4">
+                  <div className="flex items-center justify-center w-10 h-10 rounded-full bg-blue-100">
+                    <Baby className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-medium">Young Adults</span>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-sm font-semibold">
+                          {(
+                            ageDistribution.overall.young_total || 0
+                          ).toLocaleString()}
+                        </span>
+                        <Badge variant="outline">
+                          {(
+                            ageDistribution.overall.young_percentage || 0
+                          ).toFixed(1)}
+                          %
+                        </Badge>
+                      </div>
                     </div>
-                    <Badge variant="outline">{group.trend}</Badge>
+                    <Progress
+                      value={ageDistribution.overall.young_percentage || 0}
+                      className="h-2"
+                    />
                   </div>
-                  <div className="text-2xl font-bold">{group.count.toLocaleString()}</div>
-                  <div className="text-sm text-muted-foreground">
-                    {group.percentage}% of total • Primary: {group.primaryService}
-                  </div>
-                  <Progress value={group.percentage * 2} className="h-2" />
                 </div>
-              )
-            })}
-          </div>
-        </CardContent>
-      </Card>
+
+                <div className="flex items-center space-x-4">
+                  <div className="flex items-center justify-center w-10 h-10 rounded-full bg-green-100">
+                    <User className="h-5 w-5 text-green-600" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-medium">Adults</span>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-sm font-semibold">
+                          {(
+                            ageDistribution.overall.adult_total || 0
+                          ).toLocaleString()}
+                        </span>
+                        <Badge variant="outline">
+                          {(
+                            100 -
+                            (ageDistribution.overall.young_percentage || 0)
+                          ).toFixed(1)}
+                          %
+                        </Badge>
+                      </div>
+                    </div>
+                    <Progress
+                      value={
+                        100 - (ageDistribution.overall.young_percentage || 0)
+                      }
+                      className="h-2"
+                    />
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Age Distribution Pie Chart */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <PieChart className="h-5 w-5" />
+                <span>Age Distribution Breakdown</span>
+              </CardTitle>
+              <CardDescription>
+                Visual representation of age group proportions
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {ageChartData.length > 0 ? (
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <RechartsPieChart>
+                      <Pie
+                        data={ageChartData}
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={80}
+                        dataKey="value"
+                        nameKey="name"
+                        label={({ percentage }: any) =>
+                          `${percentage.toFixed(1)}%`
+                        }
+                      >
+                        {ageChartData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        formatter={(value: any) => [
+                          value.toLocaleString(),
+                          "Count",
+                        ]}
+                      />
+                      <Legend />
+                    </RechartsPieChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <div className="h-64 flex items-center justify-center text-muted-foreground">
+                  <div className="text-center">
+                    <PieChart className="h-12 w-12 mx-auto mb-2 text-gray-400" />
+                    <p>No age distribution data available</p>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Service Preferences by Age */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Service Preferences by Age Group</CardTitle>
-          <CardDescription>
-            Biometric vs Demographic update preferences across age segments
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {servicePreferences.map((pref) => (
-            <div key={pref.ageGroup} className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h4 className="font-medium">{pref.ageGroup}</h4>
-                <div className="flex space-x-2">
-                  <Badge className="bg-blue-100 text-blue-700">
-                    Bio: {pref.biometric}%
-                  </Badge>
-                  <Badge className="bg-green-100 text-green-700">
-                    Demo: {pref.demographic}%
-                  </Badge>
+      {servicePreferences?.age_preferences && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <BarChart3 className="h-5 w-5" />
+              <span>Service Preferences by Age Group</span>
+            </CardTitle>
+            <CardDescription>
+              How different age groups prefer different UIDAI services
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {servicePreferenceData.length > 0 ? (
+              <div className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={servicePreferenceData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis
+                      dataKey="service"
+                      tick={{ fontSize: 12 }}
+                      angle={-45}
+                      textAnchor="end"
+                      height={80}
+                    />
+                    <YAxis tick={{ fontSize: 12 }} />
+                    <Tooltip
+                      formatter={(value: any, name: string) => [
+                        value.toLocaleString(),
+                        `Age ${name.replace("_", "-")}`,
+                      ]}
+                    />
+                    <Legend />
+
+                    {/* Dynamically render bars for each age group */}
+                    {ageDistribution?.age_groups &&
+                      Object.keys(ageDistribution.age_groups).map(
+                        (ageGroup, index) => (
+                          <Bar
+                            key={ageGroup}
+                            dataKey={ageGroup}
+                            fill={getAgeGroupColor(index)}
+                            name={ageGroup
+                              .replace("_", "-")
+                              .replace("greater", "+")}
+                          />
+                        )
+                      )}
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div className="h-64 flex items-center justify-center text-muted-foreground">
+                <div className="text-center">
+                  <BarChart3 className="h-12 w-12 mx-auto mb-2 text-gray-400" />
+                  <p>No service preference data available</p>
                 </div>
               </div>
-              <div className="grid grid-cols-10 gap-1">
-                <div className="col-span-7 bg-blue-200 h-4 rounded-l" />
-                <div className="col-span-3 bg-green-200 h-4 rounded-r" />
-              </div>
-              <p className="text-sm text-muted-foreground">{pref.insight}</p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Detailed Service Preferences */}
+      {servicePreferences?.insights && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <TrendingUp className="h-5 w-5" />
+              <span>Demographic Insights</span>
+            </CardTitle>
+            <CardDescription>
+              Key patterns and trends in demographic service usage
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {servicePreferences.insights.map(
+                (insight: string, index: number) => (
+                  <div
+                    key={index}
+                    className="p-4 border-l-4 border-blue-500 bg-blue-50 rounded-r-lg"
+                  >
+                    <p className="text-sm text-blue-800">{insight}</p>
+                  </div>
+                )
+              )}
             </div>
-          ))}
-        </CardContent>
-      </Card>
-
-      {/* Demographics Overview */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardTitle>Gender Distribution</CardTitle>
-            <CardDescription>Service requests by gender</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {genderDistribution.map((gender) => (
-              <div key={gender.gender} className="space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-sm font-medium">{gender.gender}</span>
-                  <span className="text-sm text-muted-foreground">
-                    {gender.count.toLocaleString()} ({gender.percentage}%)
-                  </span>
-                </div>
-                <Progress value={gender.percentage} className="h-2" />
-              </div>
-            ))}
           </CardContent>
         </Card>
+      )}
 
+      {/* Service Usage Patterns */}
+      {servicePreferences?.age_preferences && (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {Object.entries(servicePreferences.age_preferences).map(
+            ([service, data]: [string, any]) => (
+              <Card key={service}>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base capitalize">
+                    {service.replace("_", " ")}
+                  </CardTitle>
+                  <CardDescription>
+                    Total: {(data.total_count || 0).toLocaleString()}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-sm">
+                        <span>Young Adults</span>
+                        <span className="font-medium">
+                          {(data.young_count || 0).toLocaleString()} (
+                          {(data.young_percentage || 0).toFixed(1)}%)
+                        </span>
+                      </div>
+                      <Progress
+                        value={data.young_percentage || 0}
+                        className="h-1"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-sm">
+                        <span>Adults</span>
+                        <span className="font-medium">
+                          {(data.adult_count || 0).toLocaleString()} (
+                          {(data.adult_percentage || 0).toFixed(1)}%)
+                        </span>
+                      </div>
+                      <Progress
+                        value={data.adult_percentage || 0}
+                        className="h-1"
+                      />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )
+          )}
+        </div>
+      )}
+
+      {/* Summary Statistics */}
+      {(ageDistribution?.summary || servicePreferences?.summary) && (
+        <div className="grid gap-4 md:grid-cols-4">
+          {ageDistribution?.summary?.most_active_age_group && (
+            <Card>
+              <CardContent className="pt-6">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-blue-600">
+                    Age{" "}
+                    {ageDistribution.summary.most_active_age_group.replace(
+                      "_",
+                      "-"
+                    )}
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    Most Active Group
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {servicePreferences?.summary?.preferred_service && (
+            <Card>
+              <CardContent className="pt-6">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-green-600">
+                    {servicePreferences.summary.preferred_service.replace(
+                      "_",
+                      " "
+                    )}
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    Most Popular Service
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {ageDistribution?.summary?.youth_percentage && (
+            <Card>
+              <CardContent className="pt-6">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-purple-600">
+                    {ageDistribution.summary.youth_percentage.toFixed(1)}%
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    Youth (5-17) Share
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {servicePreferences?.summary?.diversity_index && (
+            <Card>
+              <CardContent className="pt-6">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-orange-600">
+                    {servicePreferences.summary.diversity_index.toFixed(2)}
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    Service Diversity
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* No Data State */}
+      {!ageDistribution && !servicePreferences && !isLoading && (
         <Card>
-          <CardHeader>
-            <CardTitle>Urban vs Rural</CardTitle>
-            <CardDescription>Geographic service distribution</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {urbanRural.map((area) => (
-              <div key={area.type} className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm font-medium">{area.type}</span>
-                  <Badge variant={area.type === 'Urban' ? 'default' : 'secondary'}>
-                    {area.growth}
-                  </Badge>
-                </div>
-                <div className="text-xl font-bold">{area.count.toLocaleString()}</div>
-                <div className="text-sm text-muted-foreground">
-                  {area.percentage}% of total requests
-                </div>
-                <Progress value={area.percentage} className="h-2" />
-              </div>
-            ))}
+          <CardContent className="pt-6">
+            <div className="text-center py-12">
+              <Users className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium mb-2">No Demographic Data</h3>
+              <p className="text-muted-foreground mb-4">
+                Demographic analysis requires age and service preference data
+              </p>
+              <Button onClick={() => window.location.reload()}>
+                <Users className="h-4 w-4 mr-2" />
+                Reload Data
+              </Button>
+            </div>
           </CardContent>
         </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Key Insights</CardTitle>
-            <CardDescription>Demographic intelligence</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {demographicInsights.slice(0, 3).map((insight) => (
-              <div key={insight.title} className="space-y-1">
-                <p className="text-sm font-medium">{insight.title}</p>
-                <p className={`text-sm font-semibold ${
-                  insight.highlight ? 'text-primary' : 'text-muted-foreground'
-                }`}>{insight.value}</p>
-                <p className="text-xs text-muted-foreground">{insight.description}</p>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Detailed Insights */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Demographic Analysis Summary</CardTitle>
-          <CardDescription>
-            Key findings from demographic data analysis
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {demographicInsights.map((insight) => (
-              <div key={insight.title} className={`p-4 rounded-lg border ${
-                insight.highlight ? 'bg-primary/5 border-primary/20' : 'bg-muted/20'
-              }`}>
-                <h4 className="font-medium text-sm">{insight.title}</h4>
-                <p className="text-lg font-bold mt-1">{insight.value}</p>
-                <p className="text-xs text-muted-foreground mt-2">{insight.description}</p>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+      )}
     </div>
-  )
+  );
 }
