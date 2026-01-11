@@ -40,6 +40,23 @@ data_service: Optional[DataService] = None
 ml_service: Optional[MLService] = None
 gemini_service: Optional[GeminiService] = None
 cache_manager: Optional[CacheManager] = None
+
+# Utility function to convert numpy types to Python types
+def convert_numpy_types(obj):
+    """Recursively convert numpy types to Python native types for JSON serialization"""
+    if isinstance(obj, np.integer):
+        return int(obj)
+    elif isinstance(obj, np.floating):
+        return float(obj)
+    elif isinstance(obj, np.bool_):
+        return bool(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, dict):
+        return {key: convert_numpy_types(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_numpy_types(item) for item in obj]
+    return obj
 settings = Settings()
 
 @asynccontextmanager
@@ -471,7 +488,24 @@ async def get_geographic_states():
 async def generate_forecast(days: int = 7):
     """Generate volume forecast"""
     try:
+        # Create cache key based on forecast days
+        cache_key = f"forecast_{days}_days"
+        
+        # Check cache first
+        cached_result = cache_manager.get(cache_key) if cache_manager else None
+        if cached_result:
+            return APIResponse(
+                success=True,
+                data=cached_result,
+                message=f"Generated {days}-day forecast (cached) successfully"
+            )
+        
         forecast_result = await ml_service.generate_forecast(days=days)
+        
+        # Cache the result for 2 hours (7200 seconds)
+        if cache_manager and forecast_result:
+            cache_manager.set(cache_key, forecast_result, ttl=7200)
+        
         return APIResponse(
             success=True,
             data=forecast_result,
@@ -501,7 +535,24 @@ async def run_clustering(n_clusters: int = 5):
 async def detect_anomalies(contamination: float = 0.1):
     """Detect anomalies in the data"""
     try:
+        # Create cache key based on contamination level
+        cache_key = f"anomaly_detection_{contamination}"
+        
+        # Check cache first
+        cached_result = cache_manager.get(cache_key) if cache_manager else None
+        if cached_result:
+            return APIResponse(
+                success=True,
+                data=cached_result,
+                message=f"Anomaly detection (cached) completed with {contamination:.1%} contamination threshold"
+            )
+        
         anomaly_result = await ml_service.detect_anomalies(contamination=contamination)
+        
+        # Cache the result for 1 hour (3600 seconds)
+        if cache_manager and anomaly_result:
+            cache_manager.set(cache_key, anomaly_result, ttl=3600)
+        
         return APIResponse(
             success=True,
             data=anomaly_result,
@@ -828,6 +879,13 @@ async def get_system_recommendations():
 
 async def generate_comprehensive_insights():
     """Generate comprehensive insights across all data dimensions"""
+    # Check cache first
+    cache_key = "comprehensive_insights"
+    if cache_manager:
+        cached_insights = cache_manager.get(cache_key)
+        if cached_insights:
+            return cached_insights
+    
     insights = {
         'temporal_insights': await analyze_temporal_patterns(),
         'geographic_insights': await analyze_geographic_patterns(),
@@ -857,6 +915,10 @@ async def generate_comprehensive_insights():
     except Exception as e:
         logger.warning(f"Error calculating summary metrics: {e}")
     
+    # Cache for 30 minutes (1800 seconds)
+    if cache_manager:
+        cache_manager.set(cache_key, insights, ttl=1800)
+    
     return insights
 
 async def analyze_temporal_patterns():
@@ -864,10 +926,10 @@ async def analyze_temporal_patterns():
     try:
         patterns = []
         
-        # Get daily trends
-        daily_data = await data_service.get_temporal_daily()
-        if daily_data and 'daily_trends' in daily_data:
-            trends = daily_data['daily_trends']
+        # Get daily trends using existing method
+        daily_data = await data_service.get_temporal_data('daily', None, 30)
+        if daily_data and 'data' in daily_data:
+            trends = daily_data['data']
             
             # Analyze growth patterns (reduced threshold from 10% to 5%)
             if len(trends) > 7:
@@ -1044,28 +1106,40 @@ async def analyze_demographic_patterns():
                             'recommendation': f'Tailor services for {age_range} users'
                         })
         
-        # Alternative: Try demographic summary if age distribution doesn't work
+        # Alternative: Try age distribution as demographic summary
         if not patterns:
-            demo_summary = await data_service.get_demographic_summary()
+            demo_summary = await data_service.get_age_distribution()
             if demo_summary:
                 # Check for age groups in summary
+                age_data = None
                 if 'age_groups' in demo_summary:
                     age_data = demo_summary['age_groups']
-                    total_count = sum(item.get('count', 0) for item in age_data) if isinstance(age_data, list) else sum(age_data.values()) if isinstance(age_data, dict) else 0
+                elif 'data' in demo_summary:
+                    age_data = demo_summary['data']
+                else:
+                    age_data = demo_summary
+                
+                if age_data:
+                    total_count = 0
+                    if isinstance(age_data, list):
+                        total_count = sum(item.get('count', 0) for item in age_data if isinstance(item, dict))
+                    elif isinstance(age_data, dict):
+                        total_count = sum(age_data.values()) if all(isinstance(v, (int, float)) for v in age_data.values()) else 0
                     
                     if total_count > 0:
                         if isinstance(age_data, list):
                             for item in age_data:
-                                count = item.get('count', 0)
-                                percentage = (count / total_count) * 100
-                                age_range = item.get('age_range', item.get('name', 'unknown'))
-                                if percentage > 15:  # Even more lenient threshold
-                                    patterns.append({
-                                        'type': 'demographic_insight',
-                                        'description': f'{age_range} users comprise {percentage:.1f}% of the user base',
-                                        'impact': 'medium',
-                                        'recommendation': f'Focus on {age_range} user experience'
-                                    })
+                                if isinstance(item, dict):
+                                    count = item.get('count', 0)
+                                    percentage = (count / total_count) * 100
+                                    age_range = item.get('age_range', item.get('name', 'unknown'))
+                                    if percentage > 15:  # Even more lenient threshold
+                                        patterns.append({
+                                            'type': 'demographic_insight',
+                                            'description': f'{age_range} users comprise {percentage:.1f}% of the user base',
+                                            'impact': 'medium',
+                                            'recommendation': f'Focus on {age_range} user experience'
+                                        })
                 
                 # Check gender distribution
                 if 'gender_distribution' in demo_summary:
@@ -1214,8 +1288,18 @@ async def analyze_anomaly_patterns():
     try:
         patterns = []
         
-        # Run anomaly detection
-        anomalies = await ml_service.detect_anomalies()
+        # Check cache first
+        cache_key = "anomaly_patterns_analysis"
+        cached_anomalies = cache_manager.get(cache_key) if cache_manager else None
+        
+        if cached_anomalies:
+            anomalies = cached_anomalies
+        else:
+            # Run anomaly detection
+            anomalies = await ml_service.detect_anomalies()
+            # Cache for 30 minutes (1800 seconds)
+            if cache_manager and anomalies:
+                cache_manager.set(cache_key, anomalies, ttl=1800)
         if anomalies and 'anomalies' in anomalies:
             anomaly_list = anomalies['anomalies']
             
@@ -2225,24 +2309,43 @@ async def get_migrant_portability_index(
 ):
     """Get Migrant Portability Index - analyzes Update to Enrollment ratios to identify migration hotspots"""
     try:
+        # Create cache key
+        cache_key = f"migrant_portability_{state or 'all'}"
+        
+        # Check cache first
+        cached_result = cache_manager.get(cache_key) if cache_manager else None
+        if cached_result:
+            return APIResponse(
+                success=True,
+                data=cached_result,
+                message=f"Migrant portability analysis (cached) - {len(cached_result['migration_analysis'])} areas analyzed"
+            )
+        
         result = await data_service.get_migrant_portability_index(state)
+        
+        # Prepare response data
+        response_data = {
+            'migration_analysis': result,
+            'metadata': {
+                'description': 'Migration pressure analysis based on update-to-enrollment ratios',
+                'interpretation': {
+                    'High': 'Significant migration activity - consider PDS and healthcare resource planning',
+                    'Medium': 'Moderate migration activity - monitor trends',
+                    'Low': 'Stable population with minimal migration'
+                },
+                'algorithm': 'Ratio of demographic/biometric updates to new enrollments with adult spike detection',
+                'state_filter': state,
+                'record_count': len(result)
+            }
+        }
+        
+        # Cache the result for 1 hour (3600 seconds)
+        if cache_manager:
+            cache_manager.set(cache_key, response_data, ttl=3600)
         
         return APIResponse(
             success=True,
-            data={
-                'migration_analysis': result,
-                'metadata': {
-                    'description': 'Migration pressure analysis based on update-to-enrollment ratios',
-                    'interpretation': {
-                        'High': 'Significant migration activity - consider PDS and healthcare resource planning',
-                        'Medium': 'Moderate migration activity - monitor trends',
-                        'Low': 'Stable population with minimal migration'
-                    },
-                    'algorithm': 'Ratio of demographic/biometric updates to new enrollments with adult spike detection',
-                    'state_filter': state,
-                    'record_count': len(result)
-                }
-            },
+            data=response_data,
             message=f"Migrant portability analysis complete - {len(result)} areas analyzed"
         )
         
@@ -2256,35 +2359,54 @@ async def get_invisible_citizens_analysis(
 ):
     """Invisible Citizens Gap Analysis - identifies areas with low enrollment density indicating missing populations"""
     try:
+        # Create cache key
+        cache_key = f"invisible_citizens_{state or 'all'}"
+        
+        # Check cache first
+        cached_result = cache_manager.get(cache_key) if cache_manager else None
+        if cached_result:
+            return APIResponse(
+                success=True,
+                data=cached_result,
+                message=f"Invisible citizens analysis (cached) - {cached_result['summary']['critical_areas']} critical areas identified"
+            )
+        
         result = await data_service.get_invisible_citizens_analysis(state)
         
         # Calculate summary statistics
         critical_areas = len([r for r in result if r['risk_level'] == 'Critical'])
         high_risk_areas = len([r for r in result if r['risk_level'] == 'High'])
         
+        # Prepare response data
+        response_data = {
+            'gap_analysis': result,
+            'summary': {
+                'critical_areas': critical_areas,
+                'high_risk_areas': high_risk_areas,
+                'total_analyzed': len(result),
+                'avg_gap_percentage': round(sum(r['gap_percentage'] for r in result) / max(len(result), 1), 1)
+            },
+            'metadata': {
+                'description': 'Enrollment gap analysis to identify "invisible citizens" - missing populations',
+                'focus': 'Child welfare and infant enrollment gaps (0-5 age group)',
+                'methodology': 'Statistical comparison of actual vs expected enrollment density',
+                'risk_levels': {
+                    'Critical': '>70% enrollment gap',
+                    'High': '50-70% enrollment gap', 
+                    'Medium': '25-50% enrollment gap',
+                    'Low': '<25% enrollment gap'
+                },
+                'state_filter': state
+            }
+        }
+        
+        # Cache the result for 1 hour (3600 seconds)
+        if cache_manager:
+            cache_manager.set(cache_key, response_data, ttl=3600)
+        
         return APIResponse(
             success=True,
-            data={
-                'gap_analysis': result,
-                'summary': {
-                    'critical_areas': critical_areas,
-                    'high_risk_areas': high_risk_areas,
-                    'total_analyzed': len(result),
-                    'avg_gap_percentage': round(sum(r['gap_percentage'] for r in result) / max(len(result), 1), 1)
-                },
-                'metadata': {
-                    'description': 'Enrollment gap analysis to identify "invisible citizens" - missing populations',
-                    'focus': 'Child welfare and infant enrollment gaps (0-5 age group)',
-                    'methodology': 'Statistical comparison of actual vs expected enrollment density',
-                    'risk_levels': {
-                        'Critical': '>70% enrollment gap',
-                        'High': '50-70% enrollment gap', 
-                        'Medium': '25-50% enrollment gap',
-                        'Low': '<25% enrollment gap'
-                    },
-                    'state_filter': state
-                }
-            },
+            data=response_data,
             message=f"Invisible citizens analysis complete - {critical_areas} critical areas identified"
         )
         
@@ -2298,7 +2420,22 @@ async def get_center_anomaly_detection(
 ):
     """Forensic Center-Level Anomaly Detection - identifies suspicious center behavior patterns"""
     try:
+        # Create cache key
+        cache_key = f"center_anomalies_{state or 'all'}"
+        
+        # Check cache first
+        cached_result = cache_manager.get(cache_key) if cache_manager else None
+        if cached_result:
+            return APIResponse(
+                success=True,
+                data=cached_result,
+                message=f"Center anomaly detection (cached) - {cached_result['summary']['critical_centers'] + cached_result['summary']['high_risk_centers']} suspicious centers identified"
+            )
+        
         result = await ml_service.analyze_center_anomalies(state)
+        
+        # Convert numpy types to Python native types for JSON serialization
+        result = convert_numpy_types(result)
         
         # Calculate summary statistics
         critical_centers = len([r for r in result if r['risk_level'] == 'Critical'])
@@ -2306,32 +2443,39 @@ async def get_center_anomaly_detection(
         volume_anomalies = len([r for r in result if r['volume_anomaly']])
         timing_anomalies = len([r for r in result if r['timing_anomaly']])
         
+        # Prepare response data
+        response_data = {
+            'center_anomalies': result,
+            'summary': {
+                'critical_centers': critical_centers,
+                'high_risk_centers': high_risk_centers, 
+                'volume_anomalies': volume_anomalies,
+                'timing_anomalies': timing_anomalies,
+                'total_centers_analyzed': len(result),
+                'potential_fraud_indicators': critical_centers + high_risk_centers
+            },
+            'metadata': {
+                'description': 'Forensic analysis of center-level operations to detect fraud/corruption patterns',
+                'algorithm': 'Local Outlier Factor (LOF) with statistical pattern analysis',
+                'detection_patterns': [
+                    'Unusually high processing volumes',
+                    'Suspiciously perfect success rates (100%)',
+                    'Irregular operating schedules', 
+                    'Processing at unusual hours (3 AM)',
+                    'Statistical outliers in volume patterns'
+                ],
+                'use_case': 'UIDAI audit support for center operator verification',
+                'state_filter': state
+            }
+        }
+        
+        # Cache the result for 2 hours (7200 seconds) as it's computationally expensive
+        if cache_manager:
+            cache_manager.set(cache_key, response_data, ttl=7200)
+        
         return APIResponse(
             success=True,
-            data={
-                'center_anomalies': result,
-                'summary': {
-                    'critical_centers': critical_centers,
-                    'high_risk_centers': high_risk_centers, 
-                    'volume_anomalies': volume_anomalies,
-                    'timing_anomalies': timing_anomalies,
-                    'total_centers_analyzed': len(result),
-                    'potential_fraud_indicators': critical_centers + high_risk_centers
-                },
-                'metadata': {
-                    'description': 'Forensic analysis of center-level operations to detect fraud/corruption patterns',
-                    'algorithm': 'Local Outlier Factor (LOF) with statistical pattern analysis',
-                    'detection_patterns': [
-                        'Unusually high processing volumes',
-                        'Suspiciously perfect success rates (100%)',
-                        'Irregular operating schedules', 
-                        'Processing at unusual hours (3 AM)',
-                        'Statistical outliers in volume patterns'
-                    ],
-                    'use_case': 'UIDAI audit support for center operator verification',
-                    'state_filter': state
-                }
-            },
+            data=response_data,
             message=f"Center anomaly detection complete - {critical_centers + high_risk_centers} suspicious centers identified"
         )
         

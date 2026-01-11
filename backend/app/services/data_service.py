@@ -19,7 +19,7 @@ class DataService:
     """Production data service optimized for 2M+ records"""
     
     def __init__(self):
-        self.data_path = Path("../dataset")
+        self.data_path = Path("../DATA")
         self.processed_path = Path("data/processed")
         self.unified_data: Optional[pd.DataFrame] = None
         self.metadata: Dict = {}

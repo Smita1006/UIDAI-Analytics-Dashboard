@@ -339,9 +339,21 @@ class MLService:
         daily_data['day_of_week'] = pd.to_datetime(daily_data['date']).dt.dayofweek
         daily_data['is_weekend'] = daily_data['day_of_week'].isin([5, 6]).astype(int)
         
-        # Prepare features for anomaly detection
+        # Prepare features for anomaly detection with proper cleaning
         features = ['total_count', 'young_ratio', 'adult_ratio', 'volume_deviation', 'volume_pct_change']
-        feature_data = daily_data[features].fillna(0)
+        feature_data = daily_data[features].copy()
+        
+        # Clean infinity and NaN values
+        feature_data = feature_data.replace([np.inf, -np.inf], np.nan)
+        feature_data = feature_data.fillna(0)
+        
+        # Ensure all values are finite
+        for col in feature_data.columns:
+            feature_data[col] = np.where(np.isfinite(feature_data[col]), feature_data[col], 0)
+        
+        # Add small random noise to avoid constant features
+        if (feature_data.std() == 0).any():
+            feature_data += np.random.normal(0, 1e-6, feature_data.shape)
         
         # === 1. STATISTICAL OUTLIERS (Z-SCORE) ===
         z_scores = np.abs(stats.zscore(feature_data, axis=0, nan_policy='omit'))
@@ -381,27 +393,45 @@ class MLService:
         
         # === 4. LOCAL OUTLIER FACTOR (LOF) ===
         try:
-            if len(feature_data) > 5000:
+            # Validate feature data before LOF
+            if feature_data.isnull().any().any() or np.isinf(feature_data.values).any():
+                logger.warning("Feature data contains NaN or infinite values, cleaning...")
+                feature_data = feature_data.replace([np.inf, -np.inf], np.nan).fillna(0)
+            
+            # Check if we have enough valid samples
+            if len(feature_data) < 10:
+                logger.warning("Not enough samples for LOF analysis")
+                daily_data['lof_anomaly'] = False
+                daily_data['lof_score'] = 0
+            elif len(feature_data) > 5000:
                 # Sample for LOF (computationally expensive)
-                sample_size = 5000
+                sample_size = min(5000, len(feature_data))
                 sample_indices = np.random.choice(len(feature_data), sample_size, replace=False)
                 lof_sample = feature_data.iloc[sample_indices].copy()
                 
-                lof = LocalOutlierFactor(n_neighbors=20, contamination=contamination)
+                # Final validation of sample data
+                if lof_sample.isnull().any().any():
+                    lof_sample = lof_sample.fillna(0)
+                
+                n_neighbors = min(20, max(5, len(lof_sample) // 3))
+                lof = LocalOutlierFactor(n_neighbors=n_neighbors, contamination=contamination)
                 lof_predictions = lof.fit_predict(lof_sample)
                 
                 # Map back to full dataset
                 daily_data['lof_anomaly'] = False
+                daily_data['lof_score'] = 0.0
                 daily_data.loc[daily_data.index[sample_indices], 'lof_anomaly'] = (lof_predictions == -1)
                 daily_data.loc[daily_data.index[sample_indices], 'lof_score'] = -lof.negative_outlier_factor_
             else:
-                lof = LocalOutlierFactor(n_neighbors=20, contamination=contamination)
-                daily_data['lof_anomaly'] = lof.fit_predict(feature_data) == -1
+                n_neighbors = min(20, max(5, len(feature_data) // 3))
+                lof = LocalOutlierFactor(n_neighbors=n_neighbors, contamination=contamination)
+                lof_predictions = lof.fit_predict(feature_data)
+                daily_data['lof_anomaly'] = lof_predictions == -1
                 daily_data['lof_score'] = -lof.negative_outlier_factor_
         except Exception as e:
             logger.warning(f"LOF computation failed: {e}")
             daily_data['lof_anomaly'] = False
-            daily_data['lof_score'] = 0
+            daily_data['lof_score'] = 0.0
         
         # === 5. TEMPORAL PATTERN ANOMALIES ===
         # Sudden spikes/drops
@@ -1743,10 +1773,17 @@ class MLService:
     async def analyze_center_anomalies(self, state: Optional[str] = None) -> List[Dict[str, Any]]:
         """Forensic Center-Level Anomaly Detection using LOF and statistical analysis"""
         try:
+            # Use sample of data to prevent memory issues
             df = self.data_service.unified_data.copy()
             
             if state:
                 df = df[df['state'] == state]
+            
+            # Limit data size to prevent memory allocation errors
+            max_rows = 500000  # Limit to 500k rows
+            if len(df) > max_rows:
+                logger.info(f"Sampling {max_rows} rows from {len(df)} total rows for center analysis")
+                df = df.sample(n=max_rows, random_state=42)
             
             # Group by center (pincode) to analyze center-level behavior
             center_stats = df.groupby(['state', 'district', 'pincode', 'service_type']).agg({
@@ -1764,7 +1801,16 @@ class MLService:
             center_features = []
             center_info = []
             
+            # Limit the number of centers to process to prevent memory issues
+            max_centers = 10000  # Limit to 10k centers
+            center_count = 0
+            
             for _, row in center_stats.iterrows():
+                # Break if we've processed enough centers
+                if center_count >= max_centers:
+                    logger.info(f"Processed {center_count} centers (limit reached)")
+                    break
+                    
                 # Feature extraction for LOF with NaN handling
                 total_sum = row['total_count_sum'] if not pd.isna(row['total_count_sum']) else 0
                 total_mean = row['total_count_mean'] if not pd.isna(row['total_count_mean']) else 0
@@ -1800,6 +1846,7 @@ class MLService:
                     'volume_std': round(total_std, 1),
                     'days_active': int(count_days)
                 })
+                center_count += 1
             
             if len(center_features) < 10:
                 logger.warning("Not enough centers for reliable anomaly detection")
@@ -1824,9 +1871,15 @@ class MLService:
                     logger.warning("Found constant features, adding small random noise")
                     center_features_scaled += np.random.normal(0, 1e-6, center_features_scaled.shape)
                 
-                # Local Outlier Factor detection
-                n_neighbors = min(20, max(5, len(center_features) // 3))
-                lof = LocalOutlierFactor(n_neighbors=n_neighbors, contamination=0.1)
+                # Local Outlier Factor detection with memory optimization
+                n_neighbors = min(10, max(3, len(center_features) // 5))  # Reduced neighbors
+                contamination = min(0.1, max(0.05, 100 / len(center_features)))  # Adaptive contamination
+                
+                lof = LocalOutlierFactor(
+                    n_neighbors=n_neighbors, 
+                    contamination=contamination,
+                    n_jobs=1  # Use single core to reduce memory usage
+                )
                 anomaly_labels = lof.fit_predict(center_features_scaled)
                 anomaly_scores = -lof.negative_outlier_factor_
                 
@@ -1836,15 +1889,27 @@ class MLService:
                 anomaly_labels = np.ones(len(center_features))  # No outliers detected
                 anomaly_scores = np.ones(len(center_features))
             
-            # Statistical anomaly detection
+            # Statistical anomaly detection with memory optimization
             results = []
+            
+            # Use sample statistics if we have too many centers
+            if len(center_info) > 5000:
+                sample_size = min(1000, len(center_info))
+                sample_indices = np.random.choice(len(center_info), sample_size, replace=False)
+                center_sample = [center_info[i] for i in sample_indices]
+                
+                # Calculate stats from sample
+                sample_volumes = [center_sample[i]['total_volume'] for i in range(len(center_sample))]
+                mean_volume = np.mean(sample_volumes)
+                std_volume = np.std(sample_volumes)
+            else:
+                mean_volume = np.mean([info['total_volume'] for info in center_info])
+                std_volume = np.std([info['total_volume'] for info in center_info])
             
             for i, (info, score, is_anomaly) in enumerate(zip(center_info, anomaly_scores, anomaly_labels)):
                 # Calculate various anomaly indicators
                 
-                # Volume anomaly (Z-score based)
-                mean_volume = center_stats['total_count_sum'].mean()
-                std_volume = center_stats['total_count_sum'].std()
+                # Volume anomaly (Z-score based) using pre-calculated stats
                 volume_z_score = abs((info['total_volume'] - mean_volume) / max(std_volume, 1))
                 
                 # Success rate simulation (since we don't have actual failure data)
