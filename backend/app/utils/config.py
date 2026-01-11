@@ -24,16 +24,21 @@ class Settings(BaseSettings):
     processed_data_path: str = "data/processed"
     models_path: str = "data/models"
     
+    # VPS Memory Optimization
+    vps_memory_limit: bool = bool(os.getenv("VPS_MEMORY_LIMIT", False))
+    data_sample_size: int = int(os.getenv("DATA_SAMPLE_SIZE", "100000"))
+    max_centers: int = int(os.getenv("MAX_CENTERS", "5000"))
+    
     # Cache Configuration
     cache_ttl_summary: int = 3600  # 1 hour
     cache_ttl_kpis: int = 1800     # 30 minutes
     cache_ttl_geographic: int = 1800
     cache_ttl_temporal: int = 1800
     cache_ttl_ml: int = 7200       # 2 hours
-    cache_max_size: int = 1000
+    cache_max_size: int = int(os.getenv("CACHE_MAX_SIZE", "1000"))
     
-    # Performance Configuration
-    max_threads: int = 2
+    # Performance Configuration (VPS-aware)
+    max_threads: int = int(os.getenv("MAX_WORKERS", "2"))
     chunk_size: int = 10000
     
     # Logging Configuration

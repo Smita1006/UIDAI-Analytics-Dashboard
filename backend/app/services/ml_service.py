@@ -1779,8 +1779,8 @@ class MLService:
             if state:
                 df = df[df['state'] == state]
             
-            # Limit data size to prevent memory allocation errors
-            max_rows = 500000  # Limit to 500k rows
+            # Limit data size to prevent memory allocation errors on VPS
+            max_rows = 100000  # Reduced to 100k rows for VPS deployment
             if len(df) > max_rows:
                 logger.info(f"Sampling {max_rows} rows from {len(df)} total rows for center analysis")
                 df = df.sample(n=max_rows, random_state=42)
@@ -1801,8 +1801,8 @@ class MLService:
             center_features = []
             center_info = []
             
-            # Limit the number of centers to process to prevent memory issues
-            max_centers = 10000  # Limit to 10k centers
+            # Limit the number of centers to process to prevent memory issues on VPS
+            max_centers = 5000  # Reduced to 5k centers for VPS deployment
             center_count = 0
             
             for _, row in center_stats.iterrows():
@@ -1860,8 +1860,15 @@ class MLService:
                 logger.warning("Found NaN or infinite values in features, cleaning...")
                 center_features_array = np.nan_to_num(center_features_array, nan=0.0, posinf=1e6, neginf=-1e6)
             
-            # Run LOF anomaly detection
+            # Run LOF anomaly detection with VPS memory constraints
             try:
+                # Further limit for VPS deployment
+                if len(center_features) > 2000:
+                    logger.info(f"Further sampling features for VPS deployment: {len(center_features)} -> 2000")
+                    sample_indices = np.random.choice(len(center_features), 2000, replace=False)
+                    center_features_array = center_features_array[sample_indices]
+                    center_info = [center_info[i] for i in sample_indices]
+                
                 # Normalize features
                 scaler = StandardScaler()
                 center_features_scaled = scaler.fit_transform(center_features_array)
@@ -1871,9 +1878,16 @@ class MLService:
                     logger.warning("Found constant features, adding small random noise")
                     center_features_scaled += np.random.normal(0, 1e-6, center_features_scaled.shape)
                 
-                # Local Outlier Factor detection with memory optimization
-                n_neighbors = min(10, max(3, len(center_features) // 5))  # Reduced neighbors
-                contamination = min(0.1, max(0.05, 100 / len(center_features)))  # Adaptive contamination
+                # Local Outlier Factor detection with VPS memory optimization
+                n_neighbors = min(5, max(2, len(center_features) // 10))  # Further reduced neighbors for VPS
+                contamination = min(0.08, max(0.03, 50 / len(center_features)))  # More conservative contamination
+                
+                # Add memory monitoring
+                import psutil
+                memory_usage = psutil.virtual_memory().percent
+                if memory_usage > 80:
+                    logger.warning(f"High memory usage ({memory_usage}%), using minimal LOF parameters")
+                    n_neighbors = min(3, n_neighbors)
                 
                 lof = LocalOutlierFactor(
                     n_neighbors=n_neighbors, 
@@ -1885,9 +1899,14 @@ class MLService:
                 
             except Exception as lof_error:
                 logger.error(f"LOF failed: {lof_error}")
+                logger.info("Falling back to statistical anomaly detection for VPS compatibility")
                 # Fallback to statistical anomaly detection only
                 anomaly_labels = np.ones(len(center_features))  # No outliers detected
                 anomaly_scores = np.ones(len(center_features))
+                
+                # Force garbage collection on VPS
+                import gc
+                gc.collect()
             
             # Statistical anomaly detection with memory optimization
             results = []
