@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Settings,
@@ -96,13 +96,7 @@ export function ServiceSimulator({ isOpen, onClose }: SimulatorProps) {
   const [baselineData, setBaselineData] = useState<BaselineData | null>(null);
   const { toast } = useToast();
 
-  useEffect(() => {
-    if (isOpen) {
-      loadBaselineData();
-    }
-  }, [isOpen]);
-
-  const loadBaselineData = async () => {
+  const loadBaselineData = useCallback(async () => {
     try {
       const API_BASE_URL =
         process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -115,14 +109,19 @@ export function ServiceSimulator({ isOpen, onClose }: SimulatorProps) {
         setBaselineData(result.data);
       }
     } catch (error) {
-      console.error("Failed to load baseline data:", error);
       toast({
         title: "Data Load Error",
         description: "Unable to load simulator baseline data",
         variant: "destructive",
       });
     }
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    if (isOpen) {
+      loadBaselineData();
+    }
+  }, [isOpen, loadBaselineData]);
 
   const runSimulation = async () => {
     if (!baselineData) return;
@@ -162,7 +161,6 @@ export function ServiceSimulator({ isOpen, onClose }: SimulatorProps) {
         throw new Error(result.message);
       }
     } catch (error) {
-      console.error("Simulation error:", error);
       toast({
         title: "Simulation Failed",
         description: "Unable to complete simulation",

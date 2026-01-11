@@ -122,7 +122,6 @@ What would you like to know?`,
         throw new Error(result.message || "Failed to get response");
       }
     } catch (error) {
-      console.error("Chat error:", error);
       const errorMessage: ChatMessage = {
         id: `error-${Date.now()}`,
         type: "bot",

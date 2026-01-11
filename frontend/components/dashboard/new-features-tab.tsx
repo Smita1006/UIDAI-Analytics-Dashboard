@@ -97,9 +97,9 @@ export function NewFeaturesTab({ data }: NewFeaturesTabProps) {
       const stateParam = state && state !== "All States" ? state : undefined;
       const response = await apiClient.getMigrantPortabilityIndex(stateParam);
       // The interceptor returns response.data.data when success=true
-      setMigrantData(response?.migration_analysis || []);
+      setMigrantData(response?.data?.migration_analysis || []);
     } catch (error) {
-      console.error("Error fetching migrant data:", error);
+      // Error handled silently
     }
     setLoadingMigrant(false);
   };
@@ -110,9 +110,9 @@ export function NewFeaturesTab({ data }: NewFeaturesTabProps) {
       const stateParam = state && state !== "All States" ? state : undefined;
       const response = await apiClient.getInvisibleCitizensAnalysis(stateParam);
       // The interceptor returns response.data.data when success=true
-      setInvisibleData(response?.gap_analysis || []);
+      setInvisibleData(response?.data?.gap_analysis || []);
     } catch (error) {
-      console.error("Error fetching invisible citizens data:", error);
+      // Error handled silently
     }
     setLoadingInvisible(false);
   };
@@ -123,9 +123,9 @@ export function NewFeaturesTab({ data }: NewFeaturesTabProps) {
       const stateParam = state && state !== "All States" ? state : undefined;
       const response = await apiClient.getCenterAnomalies(stateParam);
       // The interceptor returns response.data.data when success=true
-      setAnomalyData(response?.center_anomalies || []);
+      setAnomalyData(response?.data?.center_anomalies || []);
     } catch (error) {
-      console.error("Error fetching center anomalies:", error);
+      // Error handled silently
     }
     setLoadingAnomaly(false);
   };
