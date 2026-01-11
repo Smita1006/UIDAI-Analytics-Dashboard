@@ -6,6 +6,13 @@ const nextConfig = {
   images: {
     domains: ['localhost'],
   },
+  experimental: {
+    turbo: {
+      resolveAlias: {
+        '@': '.',
+      },
+    },
+  },
 }
 
 module.exports = nextConfig
