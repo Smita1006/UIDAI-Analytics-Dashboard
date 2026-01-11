@@ -2217,6 +2217,128 @@ async def load_ml_models():
         logger.error(f"Error loading models: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+# ====================== NEW FEATURES FROM NEWFEATURES.MD ======================
+
+@app.get("/api/new-features/migrant-portability", response_model=APIResponse)
+async def get_migrant_portability_index(
+    state: Optional[str] = Query(None, description="Optional state filter")
+):
+    """Get Migrant Portability Index - analyzes Update to Enrollment ratios to identify migration hotspots"""
+    try:
+        result = await data_service.get_migrant_portability_index(state)
+        
+        return APIResponse(
+            success=True,
+            data={
+                'migration_analysis': result,
+                'metadata': {
+                    'description': 'Migration pressure analysis based on update-to-enrollment ratios',
+                    'interpretation': {
+                        'High': 'Significant migration activity - consider PDS and healthcare resource planning',
+                        'Medium': 'Moderate migration activity - monitor trends',
+                        'Low': 'Stable population with minimal migration'
+                    },
+                    'algorithm': 'Ratio of demographic/biometric updates to new enrollments with adult spike detection',
+                    'state_filter': state,
+                    'record_count': len(result)
+                }
+            },
+            message=f"Migrant portability analysis complete - {len(result)} areas analyzed"
+        )
+        
+    except Exception as e:
+        logger.error(f"Migrant portability analysis error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/new-features/invisible-citizens", response_model=APIResponse) 
+async def get_invisible_citizens_analysis(
+    state: Optional[str] = Query(None, description="Optional state filter")
+):
+    """Invisible Citizens Gap Analysis - identifies areas with low enrollment density indicating missing populations"""
+    try:
+        result = await data_service.get_invisible_citizens_analysis(state)
+        
+        # Calculate summary statistics
+        critical_areas = len([r for r in result if r['risk_level'] == 'Critical'])
+        high_risk_areas = len([r for r in result if r['risk_level'] == 'High'])
+        
+        return APIResponse(
+            success=True,
+            data={
+                'gap_analysis': result,
+                'summary': {
+                    'critical_areas': critical_areas,
+                    'high_risk_areas': high_risk_areas,
+                    'total_analyzed': len(result),
+                    'avg_gap_percentage': round(sum(r['gap_percentage'] for r in result) / max(len(result), 1), 1)
+                },
+                'metadata': {
+                    'description': 'Enrollment gap analysis to identify "invisible citizens" - missing populations',
+                    'focus': 'Child welfare and infant enrollment gaps (0-5 age group)',
+                    'methodology': 'Statistical comparison of actual vs expected enrollment density',
+                    'risk_levels': {
+                        'Critical': '>70% enrollment gap',
+                        'High': '50-70% enrollment gap', 
+                        'Medium': '25-50% enrollment gap',
+                        'Low': '<25% enrollment gap'
+                    },
+                    'state_filter': state
+                }
+            },
+            message=f"Invisible citizens analysis complete - {critical_areas} critical areas identified"
+        )
+        
+    except Exception as e:
+        logger.error(f"Invisible citizens analysis error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/new-features/center-anomalies", response_model=APIResponse)
+async def get_center_anomaly_detection(
+    state: Optional[str] = Query(None, description="Optional state filter")  
+):
+    """Forensic Center-Level Anomaly Detection - identifies suspicious center behavior patterns"""
+    try:
+        result = await ml_service.analyze_center_anomalies(state)
+        
+        # Calculate summary statistics
+        critical_centers = len([r for r in result if r['risk_level'] == 'Critical'])
+        high_risk_centers = len([r for r in result if r['risk_level'] == 'High'])
+        volume_anomalies = len([r for r in result if r['volume_anomaly']])
+        timing_anomalies = len([r for r in result if r['timing_anomaly']])
+        
+        return APIResponse(
+            success=True,
+            data={
+                'center_anomalies': result,
+                'summary': {
+                    'critical_centers': critical_centers,
+                    'high_risk_centers': high_risk_centers, 
+                    'volume_anomalies': volume_anomalies,
+                    'timing_anomalies': timing_anomalies,
+                    'total_centers_analyzed': len(result),
+                    'potential_fraud_indicators': critical_centers + high_risk_centers
+                },
+                'metadata': {
+                    'description': 'Forensic analysis of center-level operations to detect fraud/corruption patterns',
+                    'algorithm': 'Local Outlier Factor (LOF) with statistical pattern analysis',
+                    'detection_patterns': [
+                        'Unusually high processing volumes',
+                        'Suspiciously perfect success rates (100%)',
+                        'Irregular operating schedules', 
+                        'Processing at unusual hours (3 AM)',
+                        'Statistical outliers in volume patterns'
+                    ],
+                    'use_case': 'UIDAI audit support for center operator verification',
+                    'state_filter': state
+                }
+            },
+            message=f"Center anomaly detection complete - {critical_centers + high_risk_centers} suspicious centers identified"
+        )
+        
+    except Exception as e:
+        logger.error(f"Center anomaly detection error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 # ====================== GEMINI INSIGHTS BOT ENDPOINTS ======================
 
 @app.post("/api/gemini/chat", response_model=APIResponse)

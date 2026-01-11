@@ -48,6 +48,49 @@ class TemporalData(BaseModel):
     total_count: int
 
 class ClusterData(BaseModel):
+    cluster_id: int
+    center: List[float]
+    size: int
+    states: List[str]
+    avg_volume: float
+
+class MigrantPortabilityData(BaseModel):
+    """Migrant Portability Index response model"""
+    state: str
+    district: str
+    migration_index: float
+    update_to_enrollment_ratio: float
+    new_enrollments: int
+    updates: int
+    migration_classification: str  # 'High', 'Medium', 'Low'
+    adult_update_spike: bool
+
+class InvisibleCitizensData(BaseModel):
+    """Invisible Citizens Gap Analysis response model"""
+    state: str
+    district: str
+    pincode: Optional[str] = None
+    infant_enrollment_density: float
+    expected_population: int
+    actual_enrollments: int
+    gap_percentage: float
+    risk_level: str  # 'Critical', 'High', 'Medium', 'Low'
+    age_group: str
+
+class CenterAnomalyData(BaseModel):
+    """Center Anomaly Detection response model"""
+    pincode: str
+    center_location: str
+    state: str
+    district: str
+    anomaly_type: str
+    anomaly_score: float
+    suspicious_pattern: str
+    processing_hours: List[str]
+    success_rate: float
+    volume_anomaly: bool
+    timing_anomaly: bool
+    risk_level: str  # 'Critical', 'High', 'Medium', 'Low'
     """Clustering result model"""
     state: str
     district: str

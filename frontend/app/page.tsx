@@ -27,6 +27,7 @@ import { GeographicTab } from "@/components/dashboard/geographic-tab";
 import { TemporalTab } from "@/components/dashboard/temporal-tab";
 import { DemographicTab } from "@/components/dashboard/demographic-tab";
 import { MLInsightsTab } from "@/components/dashboard/ml-insights-tab";
+import { NewFeaturesTab } from "@/components/dashboard/new-features-tab";
 import { GeminiChatBot } from "@/components/dashboard/gemini-chat-bot";
 import { ServiceSimulator } from "@/components/dashboard/service-simulator";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
@@ -94,6 +95,7 @@ export default function Dashboard() {
     { id: "temporal", label: "Temporal", icon: TrendingUp },
     { id: "demographic", label: "Demographics", icon: Users },
     { id: "ml-insights", label: "ML Insights", icon: Brain },
+    { id: "new-features", label: "New Features", icon: AlertTriangle },
   ];
 
   if (loading && !summary) {
@@ -159,7 +161,7 @@ export default function Dashboard() {
             className="space-y-6"
           >
             <div className="flex items-center justify-between">
-              <TabsList className="grid grid-cols-5 w-full max-w-2xl bg-white shadow-sm">
+              <TabsList className="grid grid-cols-6 w-full max-w-3xl bg-white shadow-sm">
                 {tabs.map((tab) => {
                   const Icon = tab.icon;
                   return (
@@ -205,6 +207,10 @@ export default function Dashboard() {
 
               <TabsContent value="ml-insights" className="p-6 space-y-6">
                 <MLInsightsTab />
+              </TabsContent>
+
+              <TabsContent value="new-features" className="p-6 space-y-6">
+                <NewFeaturesTab data={summary} />
               </TabsContent>
             </div>
           </Tabs>

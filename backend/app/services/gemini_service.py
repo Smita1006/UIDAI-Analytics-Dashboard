@@ -49,6 +49,39 @@ class GeminiService:
                 "seasonal_patterns": "Q4 2024 showed 15% increase in all services, indicating seasonal enrollment patterns.",
                 "anomaly_summary": "Current high-risk districts: 8 in Bihar, 3 in Assam, 2 in West Bengal based on ML models."
             },
+            "new_features": {
+                "migrant_portability_index": {
+                    "description": "Analyzes ratio of demographic/biometric updates to new enrollments to identify migration hotspots",
+                    "purpose": "Real-time migration pressure detection for PDS and healthcare resource planning",
+                    "algorithm": "Update-to-enrollment ratio with adult spike detection",
+                    "classifications": {
+                        "High": "Migration index > 2.0, indicates significant labor movement",
+                        "Medium": "Migration index 1.2-2.0, moderate migration activity", 
+                        "Low": "Migration index < 1.2, stable population"
+                    }
+                },
+                "invisible_citizens_gap": {
+                    "description": "Enrollment gap analysis identifying missing populations, especially children",
+                    "purpose": "Child welfare monitoring and identifying enrollment dark zones",
+                    "focus": "0-5 age group infant enrollments critical for child welfare",
+                    "risk_levels": {
+                        "Critical": ">70% enrollment gap",
+                        "High": "50-70% enrollment gap",
+                        "Medium": "25-50% enrollment gap"
+                    }
+                },
+                "center_anomaly_detection": {
+                    "description": "Forensic analysis using Local Outlier Factor to detect suspicious center behavior",
+                    "purpose": "Fraud and corruption detection for UIDAI audit support",
+                    "detection_patterns": [
+                        "Unusually high processing volumes",
+                        "Suspiciously perfect success rates (100%)",
+                        "Processing at unusual hours (3 AM)",
+                        "Irregular operating schedules",
+                        "Statistical outliers in volume patterns"
+                    ]
+                }
+            },
             "insights_cards": [
                 {
                     "title": "Bihar Biometric Spike",
@@ -67,17 +100,39 @@ class GeminiService:
                     "description": "13 districts showing signs of service capacity strain",
                     "severity": "high",
                     "recommendation": "Consider additional enrollment centers in flagged districts"
+                },
+                {
+                    "title": "Migration Pressure Detected",
+                    "description": "High migration index areas identified through update-to-enrollment analysis",
+                    "severity": "medium", 
+                    "recommendation": "Deploy mobile PDS units and healthcare resources to migration hotspots"
+                },
+                {
+                    "title": "Invisible Children Alert",
+                    "description": "Critical enrollment gaps in infant population detected",
+                    "severity": "high",
+                    "recommendation": "Immediate mobile enrollment drives needed in identified dark zones"
+                },
+                {
+                    "title": "Fraud Detection Alerts",
+                    "description": "Suspicious center patterns flagged for audit investigation",
+                    "severity": "high", 
+                    "recommendation": "Audit recommended for centers showing anomalous processing patterns"
                 }
             ],
             "cluster_descriptions": {
                 "high_performance": "States like Maharashtra, Karnataka with >95% success rates",
                 "growth_states": "States showing rapid adoption: Assam, Meghalaya, Tripura",
-                "capacity_constrained": "States needing infrastructure: Bihar, UP, West Bengal"
+                "capacity_constrained": "States needing infrastructure: Bihar, UP, West Bengal",
+                "migration_hotspots": "Districts with high update-to-enrollment ratios indicating labor movement",
+                "enrollment_gaps": "Areas with critical infant enrollment deficits requiring intervention"
             },
             "forecast_outputs": {
                 "enrollment_projection": "Projected 8% growth in next quarter based on historical trends",
                 "capacity_timeline": "Current capacity sufficient for 6 months at current growth rate",
-                "risk_forecast": "Capacity strain expected in Bihar and UP by Q2 2025"
+                "risk_forecast": "Capacity strain expected in Bihar and UP by Q2 2025",
+                "migration_trends": "Labor movement patterns detected in high-migration districts",
+                "child_welfare_risk": "Critical enrollment gaps pose child welfare risks in identified areas"
             }
         }
     

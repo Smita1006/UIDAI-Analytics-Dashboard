@@ -575,3 +575,173 @@ class DataService:
             df = df[df['state'] == state]
         
         return sorted(df['district'].unique().tolist())
+    
+    async def get_migrant_portability_index(self, state: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Calculate Migrant Portability Index based on Update to Enrollment ratio"""
+        try:
+            df = self.unified_data.copy()
+            
+            # Filter by state if provided
+            if state:
+                df = df[df['state'] == state]
+            
+            # Separate enrollments and updates (note: service_type is 'enrolment', not 'enrollment')
+            enrollments = df[df['service_type'] == 'enrolment'].groupby(['state', 'district']).agg({
+                'young_count': 'sum',
+                'adult_count': 'sum'
+            }).reset_index()
+            enrollments['total_enrollments'] = enrollments['young_count'] + enrollments['adult_count']
+            
+            updates = df[df['service_type'].isin(['demographic', 'biometric'])].groupby(['state', 'district']).agg({
+                'young_count': 'sum', 
+                'adult_count': 'sum'
+            }).reset_index()
+            updates['total_updates'] = updates['young_count'] + updates['adult_count']
+            
+            # Calculate migration index
+            merged = pd.merge(updates, enrollments, on=['state', 'district'], suffixes=('_updates', '_enrollments'), how='outer').fillna(0)
+            
+            results = []
+            for _, row in merged.iterrows():
+                total_updates = row['total_updates']
+                total_enrollments = row['total_enrollments']
+                adult_updates = row['adult_count_updates']
+                
+                # Skip if no data
+                if total_updates == 0 and total_enrollments == 0:
+                    continue
+                
+                # Calculate ratio
+                ratio = total_updates / max(total_enrollments, 1)
+                
+                # Migration index calculation
+                migration_index = ratio * (1 + adult_updates / max(total_updates, 1))
+                
+                # Classification
+                if migration_index > 2.0:
+                    classification = 'High'
+                elif migration_index > 1.2:
+                    classification = 'Medium' 
+                else:
+                    classification = 'Low'
+                    
+                # Adult update spike detection
+                adult_spike = adult_updates > (total_updates * 0.7) if total_updates > 0 else False
+                
+                results.append({
+                    'state': row['state'],
+                    'district': row['district'],
+                    'migration_index': round(migration_index, 3),
+                    'update_to_enrollment_ratio': round(ratio, 3),
+                    'new_enrollments': int(total_enrollments),
+                    'updates': int(total_updates),
+                    'migration_classification': classification,
+                    'adult_update_spike': adult_spike
+                })
+                
+            return sorted(results, key=lambda x: x['migration_index'], reverse=True)
+            
+        except Exception as e:
+            logger.error(f"Error calculating migrant portability index: {e}")
+            raise
+            
+    async def get_invisible_citizens_analysis(self, state: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Analyze enrollment gaps - who isn't enrolled based on expected demographics"""
+        try:
+            df = self.unified_data.copy()
+            
+            if state:
+                df = df[df['state'] == state]
+                
+            # Focus on enrollment data for gap analysis (note: service_type is 'enrolment')
+            enrollment_df = df[df['service_type'] == 'enrolment'].copy()
+            
+            if enrollment_df.empty:
+                logger.warning("No enrollment data found")
+                return []
+            
+            # Group by geographic areas
+            grouped = enrollment_df.groupby(['state', 'district', 'pincode']).agg({
+                'young_count': 'sum',  # age 5-17
+                'adult_count': 'sum',   # age 18+
+                'total_count': 'sum'
+            }).reset_index()
+            
+            # For this analysis, we'll use young_count as a proxy for child enrollments
+            # since the original data doesn't have explicit age_0_5 column in the unified data
+            grouped['infant_count'] = grouped['young_count'] * 0.3  # Estimate 30% are younger children
+            
+            results = []
+            
+            if grouped.empty:
+                return results
+            
+            # Calculate state-wise averages for comparison
+            state_stats = grouped.groupby('state').agg({
+                'young_count': ['mean', 'std'],
+                'adult_count': ['mean', 'std'],
+                'infant_count': ['mean', 'std']
+            }).round(2)
+            
+            for _, row in grouped.iterrows():
+                try:
+                    state_mean_young = state_stats.loc[row['state'], ('young_count', 'mean')]
+                    state_mean_infant = state_stats.loc[row['state'], ('infant_count', 'mean')]
+                    
+                    # Calculate enrollment density (actual vs expected based on state average)
+                    young_density = row['young_count'] / max(state_mean_young, 1)
+                    infant_density = row['infant_count'] / max(state_mean_infant, 1)
+                    
+                    # Focus on infant enrollment gaps (critical for child welfare)
+                    infant_gap_pct = max(0, (1 - infant_density) * 100)
+                    young_gap_pct = max(0, (1 - young_density) * 100)
+                    
+                    # Risk assessment
+                    if infant_gap_pct > 70:
+                        risk_level = 'Critical'
+                    elif infant_gap_pct > 50:
+                        risk_level = 'High'
+                    elif infant_gap_pct > 25:
+                        risk_level = 'Medium'
+                    else:
+                        risk_level = 'Low'
+                        
+                    # Add both infant and young analysis
+                    results.append({
+                        'state': row['state'],
+                        'district': row['district'], 
+                        'pincode': row['pincode'],
+                        'infant_enrollment_density': round(infant_density, 3),
+                        'expected_population': int(state_mean_infant),
+                        'actual_enrollments': int(row['infant_count']),
+                        'gap_percentage': round(infant_gap_pct, 1),
+                        'risk_level': risk_level,
+                        'age_group': 'infant_0_5'
+                    })
+                    
+                    if young_gap_pct > 30:  # Only include significant young gaps
+                        results.append({
+                            'state': row['state'],
+                            'district': row['district'],
+                            'pincode': row['pincode'],
+                            'infant_enrollment_density': round(young_density, 3),
+                            'expected_population': int(state_mean_young),
+                            'actual_enrollments': int(row['young_count']),
+                            'gap_percentage': round(young_gap_pct, 1),
+                            'risk_level': 'High' if young_gap_pct > 60 else 'Medium',
+                            'age_group': 'young_5_17'
+                        })
+                        
+                except Exception as row_error:
+                    logger.warning(f"Error processing row for {row.get('state', 'Unknown')}: {row_error}")
+                    continue
+                    
+            # Sort by risk and gap percentage
+            risk_order = {'Critical': 4, 'High': 3, 'Medium': 2, 'Low': 1}
+            results = sorted(results, key=lambda x: (risk_order.get(x['risk_level'], 0), x['gap_percentage']), reverse=True)
+            
+            return results[:100]  # Return top 100 problematic areas
+            
+        except Exception as e:
+            logger.error(f"Error in invisible citizens analysis: {e}")
+            raise
