@@ -1,6 +1,6 @@
 # UIDAI Analytics Dashboard
 
-A comprehensive analytics dashboard for UIDAI Aadhaar data with advanced ML insights and predictive analytics capabilities.
+A comprehensive analytics dashboard for UIDAI Aadhaar data with advanced ML insights, predictive analytics capabilities, and cutting-edge new features for enhanced monitoring and fraud detection.
 
 ![UIDAI Analytics Dashboard](https://img.shields.io/badge/Status-Production%20Ready-green)
 ![Tech Stack](https://img.shields.io/badge/Tech-Next.js%20%7C%20FastAPI%20%7C%20ML-blue)
@@ -8,9 +8,9 @@ A comprehensive analytics dashboard for UIDAI Aadhaar data with advanced ML insi
 
 ## 🎯 Project Overview
 
-The UIDAI Analytics Dashboard provides real-time insights into Aadhaar enrollment and update patterns across India. Built with modern technologies and advanced machine learning capabilities, it enables data-driven decision making for identity management operations.
+The UIDAI Analytics Dashboard provides real-time insights into Aadhaar enrollment and update patterns across India. Built with modern technologies and advanced machine learning capabilities, it enables data-driven decision making for identity management operations with specialized focus on fraud detection, population monitoring, and migration analysis.
 
-### Key Features
+### Core Features
 
 - **📊 Interactive Visualizations**: Real-time charts, geographic maps, and demographic breakdowns
 - **🧠 ML Analytics**: Anomaly detection, pattern recognition, and predictive forecasting
@@ -18,6 +18,12 @@ The UIDAI Analytics Dashboard provides real-time insights into Aadhaar enrollmen
 - **📈 Temporal Analysis**: Daily, weekly, and seasonal trend identification
 - **⚡ Real-time Processing**: Live data updates and instant insights
 - **📱 Responsive Design**: Optimized for desktop, tablet, and mobile devices
+
+### 🔥 New Features
+
+- **👥 Migrant Portability Index**: Advanced migration pattern analysis with update-to-enrollment ratios for identifying population movement trends and mobility patterns across states and districts
+- **👶 Invisible Citizens Gap Analysis**: Child welfare monitoring system that identifies enrollment gaps in infant populations, helping detect underserved communities and improve coverage
+- **🔍 Center Anomaly Detection**: Forensic analysis system for fraud detection featuring suspicious pattern recognition, volume anomaly detection, timing irregularities, and center auditing capabilities
 
 ## 🏗️ Architecture
 
@@ -66,7 +72,7 @@ The UIDAI Analytics Dashboard provides real-time insights into Aadhaar enrollmen
 1. **Clone the repository**
 
 ```bash
-git clone https://github.com/your-org/UIDAI-Analytics-Dashboard.git
+git clone https://github.com/altf4-games/UIDAI-Analytics-Dashboard.git
 cd UIDAI-Analytics-Dashboard
 ```
 
@@ -117,6 +123,24 @@ npm run dev
 - **Methods**: Statistical analysis, trend detection
 - **Scope**: Temporal patterns, geographic correlations, demographic preferences
 
+### 5. Migration Analysis
+
+- **Algorithm**: Migration Index Calculation with Update-to-Enrollment Ratios
+- **Purpose**: Identify population movement patterns and mobility trends
+- **Features**: State-wise migration classification, adult update spikes, demographic shifts
+
+### 6. Gap Analysis
+
+- **Method**: Enrollment Density Analysis for Infant Populations
+- **Purpose**: Detect underserved communities and improve welfare coverage
+- **Scope**: Child welfare monitoring, population coverage assessment
+
+### 7. Fraud Detection
+
+- **Techniques**: Center-level anomaly detection, suspicious pattern recognition
+- **Purpose**: Identify fraudulent activities and operational irregularities
+- **Features**: Volume anomalies, timing irregularities, success rate analysis
+
 ## 📊 Key Insights Discovered
 
 ### Geographic Patterns
@@ -140,19 +164,34 @@ npm run dev
 - **Gender Split**: Slight male preference (52-48)
 - **Rural Adoption**: Growing at 15% higher rate than urban
 
+### New Features Analytics
+
+- **Migration Patterns**: 12% of population shows high mobility indicators
+- **Child Welfare**: Identified 3.2% enrollment gaps in infant populations
+- **Fraud Detection**: Detected 0.8% anomalous centers with suspicious patterns
+- **Risk Assessment**: Critical risk areas concentrate in 15 districts
+
 ## 👥 Team
 
-- **Dr. Rajesh Kumar** - Lead Data Scientist
-- **Priya Sharma** - Full Stack Developer
-- **Amit Patel** - Backend Engineer
-- **Dr. Meera Reddy** - Data Analyst
+- **Pradyum Mistry** - Full-Stack Developer & ML Engineer
+  - GitHub: [@altf4-games](https://github.com/altf4-games)
+  - Led full-stack development, ML implementation, time series analysis, and temporal pattern recognition for the UIDAI analytics platform.
+
+- **Raunak Gupta** - ML Specialist  
+  - GitHub: [@Raunakg2005](https://github.com/Raunakg2005)
+  - Specialized in developing and implementing anomaly detection algorithms and machine learning model development for data insights.
+
+- **Smita Sarangi** - Data Scientist
+  - GitHub: [@Smita1006](https://github.com/Smita1006)
+  - Focused on K-means clustering analysis and demographic pattern recognition to extract meaningful insights from population data.
 
 ## 📞 Support
 
 For questions, issues, or collaboration:
 
 - **Email**: team@uidai-analytics.gov.in
-- **GitHub Issues**: [Create an issue](https://github.com/your-org/UIDAI-Analytics-Dashboard/issues)
+- **GitHub Issues**: [Create an issue](https://github.com/altf4-games/UIDAI-Analytics-Dashboard/issues)
+- **Project Lead**: [@altf4-games](https://github.com/altf4-games)
 
 ---
 
