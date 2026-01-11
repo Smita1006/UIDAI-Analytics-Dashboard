@@ -40,10 +40,10 @@ interface MigrantData {
   adult_update_spike: boolean;
 }
 
-interface InvisibleCitizensData {
+interface InvisibleCitizensItem {
   state: string;
   district: string;
-  pincode?: string;
+  pincode: string;
   infant_enrollment_density: number;
   expected_population: number;
   actual_enrollments: number;
@@ -52,7 +52,7 @@ interface InvisibleCitizensData {
   age_group: string;
 }
 
-interface CenterAnomalyData {
+interface CenterAnomalyItem {
   pincode: string;
   center_location: string;
   state: string;
@@ -60,19 +60,21 @@ interface CenterAnomalyData {
   anomaly_type: string;
   anomaly_score: number;
   suspicious_pattern: string;
-  processing_hours: string[];
+  processing_hours: string;
   success_rate: number;
   volume_anomaly: boolean;
   timing_anomaly: boolean;
   risk_level: string;
+  total_volume: number;
+  daily_average: number;
 }
 
 export function NewFeaturesTab({ data }: NewFeaturesTabProps) {
   const [migrantData, setMigrantData] = useState<MigrantData[]>([]);
-  const [invisibleData, setInvisibleData] = useState<InvisibleCitizensData[]>(
+  const [invisibleData, setInvisibleData] = useState<InvisibleCitizensItem[]>(
     []
   );
-  const [anomalyData, setAnomalyData] = useState<CenterAnomalyData[]>([]);
+  const [anomalyData, setAnomalyData] = useState<CenterAnomalyItem[]>([]);
   const [selectedState, setSelectedState] = useState<string>("");
   const [loadingMigrant, setLoadingMigrant] = useState(false);
   const [loadingInvisible, setLoadingInvisible] = useState(false);
@@ -97,7 +99,7 @@ export function NewFeaturesTab({ data }: NewFeaturesTabProps) {
       const stateParam = state && state !== "All States" ? state : undefined;
       const response = await apiClient.getMigrantPortabilityIndex(stateParam);
       // The interceptor returns response.data.data when success=true
-      setMigrantData(response?.data?.migration_analysis || []);
+      setMigrantData(response?.migration_analysis || []);
     } catch (error) {
       // Error handled silently
     }
@@ -110,7 +112,7 @@ export function NewFeaturesTab({ data }: NewFeaturesTabProps) {
       const stateParam = state && state !== "All States" ? state : undefined;
       const response = await apiClient.getInvisibleCitizensAnalysis(stateParam);
       // The interceptor returns response.data.data when success=true
-      setInvisibleData(response?.data?.gap_analysis || []);
+      setInvisibleData(response?.gap_analysis || []);
     } catch (error) {
       // Error handled silently
     }
@@ -123,7 +125,7 @@ export function NewFeaturesTab({ data }: NewFeaturesTabProps) {
       const stateParam = state && state !== "All States" ? state : undefined;
       const response = await apiClient.getCenterAnomalies(stateParam);
       // The interceptor returns response.data.data when success=true
-      setAnomalyData(response?.data?.center_anomalies || []);
+      setAnomalyData(response?.center_anomalies || []);
     } catch (error) {
       // Error handled silently
     }
@@ -425,7 +427,7 @@ export function NewFeaturesTab({ data }: NewFeaturesTabProps) {
                   <span>
                     Suspicious Centers:{" "}
                     {
-                      anomalyData.filter((d) => d.risk_level === "Critical")
+                      anomalyData.filter((d) => d.anomaly_type === "Critical")
                         .length
                     }
                   </span>
@@ -458,17 +460,15 @@ export function NewFeaturesTab({ data }: NewFeaturesTabProps) {
                         <div className="flex flex-col items-end gap-1">
                           <div
                             className={`w-3 h-3 rounded-full ${getRiskColor(
-                              item.risk_level
+                              item.anomaly_type
                             )}`}
                           ></div>
                           <Badge variant="outline" className="text-xs">
-                            {item.risk_level}
+                            {item.anomaly_type}
                           </Badge>
-                          {(item.volume_anomaly || item.timing_anomaly) && (
-                            <Badge variant="destructive" className="text-xs">
-                              Anomaly
-                            </Badge>
-                          )}
+                          <Badge variant="destructive" className="text-xs">
+                            Score: {item.anomaly_score}
+                          </Badge>
                         </div>
                       </div>
                     </div>

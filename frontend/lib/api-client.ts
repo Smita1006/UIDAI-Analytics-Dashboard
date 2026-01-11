@@ -2,6 +2,88 @@ import axios from "axios";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+// Type definitions for new features responses
+interface MigrantPortabilityData {
+  migration_analysis: Array<{
+    state: string;
+    district: string;
+    migration_index: number;
+    update_to_enrollment_ratio: number;
+    new_enrollments: number;
+    updates: number;
+    migration_classification: string;
+    adult_update_spike: boolean;
+  }>;
+  metadata: {
+    description: string;
+    interpretation: Record<string, string>;
+    algorithm: string;
+    state_filter: string | null;
+    record_count: number;
+  };
+}
+
+interface InvisibleCitizensData {
+  gap_analysis: Array<{
+    state: string;
+    district: string;
+    pincode: string;
+    infant_enrollment_density: number;
+    expected_population: number;
+    actual_enrollments: number;
+    gap_percentage: number;
+    risk_level: string;
+    age_group: string;
+  }>;
+  summary: {
+    critical_areas: number;
+    high_risk_areas: number;
+    total_analyzed: number;
+    avg_gap_percentage: number;
+  };
+  metadata: {
+    description: string;
+    focus: string;
+    methodology: string;
+    risk_levels: Record<string, string>;
+    state_filter: string | null;
+  };
+}
+
+interface CenterAnomaliesData {
+  center_anomalies: Array<{
+    pincode: string;
+    center_location: string;
+    state: string;
+    district: string;
+    anomaly_type: string;
+    anomaly_score: number;
+    suspicious_pattern: string;
+    processing_hours: string;
+    success_rate: number;
+    volume_anomaly: boolean;
+    timing_anomaly: boolean;
+    risk_level: string;
+    total_volume: number;
+    daily_average: number;
+  }>;
+  summary: {
+    critical_centers: number;
+    high_risk_centers: number;
+    volume_anomalies: number;
+    timing_anomalies: number;
+    total_centers_analyzed: number;
+    potential_fraud_indicators: number;
+  };
+  metadata: {
+    description: string;
+    algorithm: string;
+    detection_patterns: string[];
+    use_case: string;
+    state_filter: string | null;
+  };
+}
+
 // Create axios instance
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -135,17 +217,21 @@ export const apiClient = {
   getNewFeaturesSummary: () => api.get("/api/analytics/new-features-summary"),
 
   // New Features - Direct API calls
-  getMigrantPortabilityIndex: (state?: string) => {
+  getMigrantPortabilityIndex: (
+    state?: string
+  ): Promise<MigrantPortabilityData> => {
     const params = state ? `?state=${encodeURIComponent(state)}` : "";
     return api.get(`/api/new-features/migrant-portability${params}`);
   },
 
-  getInvisibleCitizensAnalysis: (state?: string) => {
+  getInvisibleCitizensAnalysis: (
+    state?: string
+  ): Promise<InvisibleCitizensData> => {
     const params = state ? `?state=${encodeURIComponent(state)}` : "";
     return api.get(`/api/new-features/invisible-citizens${params}`);
   },
 
-  getCenterAnomalies: (state?: string) => {
+  getCenterAnomalies: (state?: string): Promise<CenterAnomaliesData> => {
     const params = state ? `?state=${encodeURIComponent(state)}` : "";
     return api.get(`/api/new-features/center-anomalies${params}`);
   },
