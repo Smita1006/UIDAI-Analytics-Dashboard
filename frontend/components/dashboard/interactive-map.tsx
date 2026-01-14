@@ -13,30 +13,14 @@ import { Button } from "@/components/ui/button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { MapPin, Layers } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
+import dynamic from "next/dynamic";
 
 // Import Leaflet CSS
 import "leaflet/dist/leaflet.css";
 
-// Leaflet imports with dynamic loading
-import dynamic from "next/dynamic";
-
-const MapContainer = dynamic(
-  () => import("react-leaflet").then((mod) => mod.MapContainer),
-  { ssr: false }
-);
-const TileLayer = dynamic(
-  () => import("react-leaflet").then((mod) => mod.TileLayer),
-  { ssr: false }
-);
-const CircleMarker = dynamic(
-  () => import("react-leaflet").then((mod) => mod.CircleMarker),
-  { ssr: false }
-);
-const Popup = dynamic(() => import("react-leaflet").then((mod) => mod.Popup), {
-  ssr: false,
-});
-const Tooltip = dynamic(
-  () => import("react-leaflet").then((mod) => mod.Tooltip),
+// Dynamically import the map wrapper with no SSR
+const LeafletMapWrapper = dynamic(
+  () => import("./leaflet-map-wrapper").then((mod) => mod.LeafletMapWrapper),
   { ssr: false }
 );
 
@@ -154,10 +138,9 @@ export function InteractiveMap({
     };
 
     loadMapData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const getMarkerColor = (value: any) => {
+  const getMarkerColor = (value: any): string => {
     if (selectedLayer === "volume") {
       if (value > 400000) return "#dc2626";
       if (value > 200000) return "#f97316";
@@ -184,6 +167,8 @@ export function InteractiveMap({
           return "#6b7280";
       }
     }
+    
+    return "#6b7280"; // default fallback
   };
 
   const getMarkerSize = (value: any) => {
@@ -269,106 +254,16 @@ export function InteractiveMap({
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div
-          style={{ height, width: "100%" }}
-          className="rounded-lg overflow-hidden border"
-        >
-          {typeof window !== "undefined" && (
-            <MapContainer
-              center={[20.5937, 78.9629]}
-              zoom={5}
-              style={{ height: "100%", width: "100%" }}
-              scrollWheelZoom={true}
-            >
-              <TileLayer
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              />
-
-              {mapData?.map((state: any, index: number) => {
-                const value =
-                  selectedLayer === "volume"
-                    ? state.volume
-                    : selectedLayer === "growth"
-                    ? state.growth
-                    : state.risk;
-
-                return (
-                  <CircleMarker
-                    key={index}
-                    center={[state.lat, state.lng]}
-                    radius={getMarkerSize(state.volume)}
-                    fillColor={getMarkerColor(value)}
-                    color={getMarkerColor(value)}
-                    weight={2}
-                    opacity={0.8}
-                    fillOpacity={0.6}
-                  >
-                    <Popup>
-                      <div className="p-2 min-w-48">
-                        <h3 className="font-semibold text-lg mb-2">
-                          {state.name}
-                        </h3>
-                        <div className="space-y-1">
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">
-                              Volume:
-                            </span>
-                            <span className="font-medium">
-                              {state.volume.toLocaleString()}
-                            </span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">
-                              Growth:
-                            </span>
-                            <span className="font-medium">
-                              {state.growth.toFixed(1)}%
-                            </span>
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <span className="text-muted-foreground">Risk:</span>
-                            <Badge className={getRiskColor(state.risk)}>
-                              {state.risk}
-                            </Badge>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">
-                              Districts:
-                            </span>
-                            <span className="font-medium">
-                              {state.districts}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </Popup>
-
-                    <Tooltip direction="top" offset={[0, -10]} opacity={0.9}>
-                      <span className="font-medium">{state.name}</span>
-                      <br />
-                      {selectedLayer === "volume" &&
-                        `Volume: ${state.volume.toLocaleString()}`}
-                      {selectedLayer === "growth" &&
-                        `Growth: ${state.growth.toFixed(1)}%`}
-                      {selectedLayer === "risk" && `Risk: ${state.risk}`}
-                    </Tooltip>
-                  </CircleMarker>
-                );
-              }) || (
-                <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-90 z-[1000]">
-                  <div className="text-center">
-                    <MapPin className="h-12 w-12 text-gray-400 mx-auto mb-2" />
-                    <p className="text-muted-foreground">
-                      No geographic data available
-                    </p>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Run data analysis to populate the map
-                    </p>
-                  </div>
-                </div>
-              )}
-            </MapContainer>
+        <div className="rounded-lg overflow-hidden border">
+          {typeof window !== "undefined" && mapData && (
+            <LeafletMapWrapper
+              mapData={mapData}
+              selectedLayer={selectedLayer}
+              height={height}
+              getMarkerSize={getMarkerSize}
+              getMarkerColor={getMarkerColor}
+              getRiskColor={getRiskColor}
+            />
           )}
         </div>
 

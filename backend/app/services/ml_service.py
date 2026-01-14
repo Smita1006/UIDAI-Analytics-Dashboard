@@ -49,10 +49,19 @@ class MLService:
         self.scalers = {}
         self.model_path = Path("data/models")
         self.executor = ThreadPoolExecutor(max_workers=2)
+        self._forecast_method_logged = False  # Track if we've logged the forecast method
         
     async def initialize(self):
         """Initialize ML service"""
         logger.info("🤖 Initializing ML service...")
+        
+        # Log forecast capabilities once at startup
+        if PROPHET_AVAILABLE:
+            logger.info("✅ Prophet available for advanced forecasting")
+        elif ARIMA_AVAILABLE:
+            logger.info("✅ ARIMA available for time series forecasting")
+        else:
+            logger.info("ℹ️  Using linear regression for forecasting (Prophet/ARIMA not available)")
         
         try:
             # Create models directory
@@ -678,7 +687,9 @@ class MLService:
     async def generate_forecast(self, days: int = 7) -> Dict[str, Any]:
         """Generate time series forecasting"""
         try:
-            logger.info(f"📈 Generating {days}-day forecast...")
+            # Log only on first call
+            if not self._forecast_method_logged:
+                logger.info(f"📈 Generating {days}-day forecast...")
             
             df = self.data_service.unified_data
             
@@ -700,26 +711,24 @@ class MLService:
         if len(daily_volumes) < 2:
             raise ValueError("Insufficient data for forecasting")
         
-        logger.info(f"📊 Forecast setup: Prophet={PROPHET_AVAILABLE}, ARIMA={ARIMA_AVAILABLE}, Data points={len(daily_volumes)}")
+        # Log only once per service instance
+        if not self._forecast_method_logged:
+            logger.info(f"📊 Forecast setup: Prophet={PROPHET_AVAILABLE}, ARIMA={ARIMA_AVAILABLE}, Data points={len(daily_volumes)}")
+            self._forecast_method_logged = True
         
         # Try Prophet if available, otherwise use improved trend-based
         if PROPHET_AVAILABLE and len(daily_volumes) >= 14:  # Prophet needs more data
             try:
-                logger.info("🚀 Using Prophet for forecasting...")
                 return self._forecast_with_prophet(daily_volumes, days)
             except Exception as e:
                 logger.warning(f"Prophet forecasting failed: {e}, falling back to trend-based")
                 return self._forecast_with_trend(daily_volumes, days)
         else:
-            if not PROPHET_AVAILABLE:
-                logger.info("📦 Prophet not available, trying ARIMA...")
             if ARIMA_AVAILABLE and len(daily_volumes) >= 30:
                 try:
-                    logger.info("📈 Using Auto ARIMA for forecasting...")
                     return self._forecast_with_arima(daily_volumes, days)
                 except Exception as e:
                     logger.warning(f"ARIMA forecasting failed: {e}, falling back to trend-based")
-            logger.info("📉 Using linear regression fallback...")
             return self._forecast_with_trend(daily_volumes, days)
     
     def _forecast_with_prophet(self, daily_volumes: pd.Series, days: int) -> Dict[str, Any]:
@@ -1967,6 +1976,10 @@ class MLService:
                 # Risk level assessment
                 risk_score = score * (1 + volume_z_score) * (1 + abs(0.9 - simulated_success_rate))
                 
+                # Normalize anomaly score to 0-100 scale for better readability
+                # Raw LOF scores can be very large, so we normalize them
+                normalized_score = min(100, (score - 1) * 50)  # Convert to 0-100 scale
+                
                 if risk_score > 3.0 and is_anomaly == -1:
                     risk_level = 'Critical'
                 elif risk_score > 2.0 or is_anomaly == -1:
@@ -1978,13 +1991,19 @@ class MLService:
                 
                 # Only include anomalous centers or high-risk centers
                 if is_anomaly == -1 or risk_score > 1.5:
+                    # Clean district name: add space before capital letters and remove special characters
+                    clean_district = info['district'].replace('?', '-')
+                    # Add spaces before capital letters in concatenated names
+                    import re
+                    clean_district = re.sub(r'([a-z])([A-Z])', r'\1 \2', clean_district)
+                    
                     results.append({
                         'pincode': info['pincode'],
-                        'center_location': f"{info['district']}, {info['state']}",
+                        'center_location': f"{clean_district}, {info['state']}",
                         'state': info['state'],
-                        'district': info['district'],
+                        'district': clean_district,
                         'anomaly_type': info['service_type'],
-                        'anomaly_score': round(float(score), 3),
+                        'anomaly_score': round(float(normalized_score), 2),
                         'suspicious_pattern': suspicious_pattern,
                         'processing_hours': ["09:00-17:00"],  # Simulated normal hours
                         'success_rate': round(simulated_success_rate, 3),

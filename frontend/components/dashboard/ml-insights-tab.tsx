@@ -83,6 +83,7 @@ export function MLInsightsTab({ data }: MLInsightsTabProps) {
             patternsData = patternsData.data;
           }
 
+          console.log("Pattern Insights Loaded:", patternsData);
           setPatternInsights(patternsData);
         }
 
@@ -158,9 +159,15 @@ export function MLInsightsTab({ data }: MLInsightsTabProps) {
       anomalyResults || comprehensiveInsights?.anomaly_insights?.length > 0;
     const hasForecastData =
       forecastResults || comprehensiveInsights?.predictive_insights?.length > 0;
-    const hasPatternData =
-      patternInsights?.high_impact_patterns?.length > 0 ||
-      patternInsights?.medium_impact_patterns?.length > 0;
+    
+    // Check pattern data with proper validation
+    const hasPatternData = !!(
+      patternInsights && (
+        (Array.isArray(patternInsights.high_impact_patterns) && patternInsights.high_impact_patterns.length > 0) ||
+        (Array.isArray(patternInsights.medium_impact_patterns) && patternInsights.medium_impact_patterns.length > 0) ||
+        patternInsights.total_patterns > 0
+      )
+    );
 
     const models = [
       {
@@ -214,11 +221,11 @@ export function MLInsightsTab({ data }: MLInsightsTabProps) {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-wrap gap-4">
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
             <Button
               onClick={handleRunAnomalyDetection}
               disabled={anomalyLoading}
-              className="flex items-center space-x-2"
+              className="flex items-center justify-center space-x-2 w-full sm:w-auto"
             >
               {anomalyLoading ? (
                 <LoadingSpinner className="h-4 w-4" />
@@ -232,7 +239,7 @@ export function MLInsightsTab({ data }: MLInsightsTabProps) {
               onClick={handleRunForecast}
               disabled={forecastLoading}
               variant="outline"
-              className="flex items-center space-x-2"
+              className="flex items-center justify-center space-x-2 w-full sm:w-auto"
             >
               {forecastLoading ? (
                 <LoadingSpinner className="h-4 w-4" />

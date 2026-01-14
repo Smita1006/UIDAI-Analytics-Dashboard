@@ -14,7 +14,15 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
-import { Settings, RefreshCw, Download, FileText, Users } from "lucide-react";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import { Settings, RefreshCw, Download, FileText, Users, Menu } from "lucide-react";
 import { useState } from "react";
 import Link from "next/link";
 import { useToast } from "@/hooks/use-toast";
@@ -147,26 +155,29 @@ export function DashboardHeader() {
       <div className="container mx-auto px-4">
         <div className="flex h-16 items-center justify-between">
           {/* Left side - Title */}
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2 md:space-x-4">
             <div className="flex items-center space-x-2">
               <div className="h-8 w-8 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-md flex items-center justify-center">
                 <span className="text-white font-bold text-sm">UI</span>
               </div>
-              <div>
-                <h1 className="text-xl font-semibold">UIDAI Analytics</h1>
-                <p className="text-sm text-muted-foreground">
+              <div className="hidden sm:block">
+                <h1 className="text-lg md:text-xl font-semibold">UIDAI Analytics</h1>
+                <p className="text-xs md:text-sm text-muted-foreground">
                   Identity Management Dashboard
                 </p>
               </div>
+              <div className="block sm:hidden">
+                <h1 className="text-base font-semibold">UIDAI</h1>
+              </div>
             </div>
-            <Separator orientation="vertical" className="h-6" />
-            <Badge variant="secondary" className="bg-green-100 text-green-700">
+            <Separator orientation="vertical" className="h-6 hidden md:block" />
+            <Badge variant="secondary" className="bg-green-100 text-green-700 hidden md:flex text-xs">
               Live Data • 4.3M+ Records
             </Badge>
           </div>
 
-          {/* Right side - Action buttons */}
-          <div className="flex items-center space-x-2">
+          {/* Right side - Desktop Actions */}
+          <div className="hidden md:flex items-center space-x-2">
             {/* Settings */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -285,6 +296,135 @@ export function DashboardHeader() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+          </div>
+
+          {/* Mobile Menu */}
+          <div className="flex md:hidden items-center space-x-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+            >
+              <RefreshCw
+                className={cn("h-5 w-5", isRefreshing && "animate-spin")}
+              />
+            </Button>
+            
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  <Menu className="h-5 w-5" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent>
+                <SheetHeader>
+                  <SheetTitle>Dashboard Menu</SheetTitle>
+                  <SheetDescription>
+                    Access settings and export options
+                  </SheetDescription>
+                </SheetHeader>
+                
+                <div className="mt-6 space-y-4">
+                  {/* Live Data Badge */}
+                  <Badge variant="secondary" className="bg-green-100 text-green-700 w-full justify-center py-2">
+                    Live Data • 4.3M+ Records
+                  </Badge>
+                  
+                  {/* Settings Section */}
+                  <div className="space-y-3">
+                    <h3 className="font-semibold text-sm">Settings</h3>
+                    
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm">Auto Refresh</Label>
+                      <input
+                        type="checkbox"
+                        checked={settings.autoRefresh}
+                        onChange={(e) => {
+                          setSettings((prev) => ({ ...prev, autoRefresh: e.target.checked }));
+                          toast({
+                            title: "Auto Refresh " + (e.target.checked ? "Enabled" : "Disabled"),
+                            description: e.target.checked
+                              ? "Dashboard will refresh automatically."
+                              : "Manual refresh required.",
+                          });
+                        }}
+                        className="h-4 w-4"
+                      />
+                    </div>
+                    
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm">Notifications</Label>
+                      <input
+                        type="checkbox"
+                        checked={settings.notifications}
+                        onChange={(e) => {
+                          setSettings((prev) => ({ ...prev, notifications: e.target.checked }));
+                          toast({
+                            title: "Notifications " + (e.target.checked ? "Enabled" : "Disabled"),
+                            description: e.target.checked
+                              ? "You'll receive dashboard notifications."
+                              : "Notifications turned off.",
+                          });
+                        }}
+                        className="h-4 w-4"
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label className="text-sm">Refresh Rate (seconds)</Label>
+                      <Input
+                        type="number"
+                        value={settings.refreshRate / 1000}
+                        onChange={(e) => {
+                          const newRate = parseInt(e.target.value) * 1000;
+                          setSettings((prev) => ({ ...prev, refreshRate: newRate }));
+                          toast({
+                            title: "Refresh Rate Updated",
+                            description: `Dashboard will refresh every ${e.target.value} seconds.`,
+                          });
+                        }}
+                        min="10"
+                        max="300"
+                      />
+                    </div>
+                  </div>
+                  
+                  {/* Export Section */}
+                  <div className="space-y-3">
+                    <h3 className="font-semibold text-sm">Export Data</h3>
+                    
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start"
+                      onClick={() => handleExport("json")}
+                      disabled={isExporting}
+                    >
+                      <FileText className="h-4 w-4 mr-2" />
+                      Export as JSON
+                    </Button>
+                    
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start"
+                      onClick={() => handleExport("csv")}
+                      disabled={isExporting}
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Export as CSV
+                    </Button>
+                  </div>
+                  
+                  {/* About */}
+                  <Link href="/about" className="block">
+                    <Button variant="outline" className="w-full justify-start">
+                      <Users className="h-4 w-4 mr-2" />
+                      About
+                    </Button>
+                  </Link>
+                </div>
+              </SheetContent>
+            </Sheet>
           </div>
         </div>
       </div>

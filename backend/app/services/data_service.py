@@ -111,7 +111,59 @@ class DataService:
         # Convert date column
         df['date'] = pd.to_datetime(df['date'], format='%d-%m-%Y')
         
-        # Optimize string columns
+        # Normalize state names
+        df['state'] = df['state'].str.strip()  # Remove leading/trailing spaces
+        
+        # Create state name mapping for common variations
+        state_mappings = {
+            # Standardize capitalization
+            'WEST BENGAL': 'West Bengal',
+            'West bengal': 'West Bengal',
+            'West Bangal': 'West Bengal',
+            'Westbengal': 'West Bengal',
+            'WESTBENGAL': 'West Bengal',
+            'west Bengal': 'West Bengal',
+            'West Bengli': 'West Bengal',
+            
+            'ODISHA': 'Odisha',
+            'odisha': 'Odisha',
+            'Orissa': 'Odisha',  # Old name
+            
+            'ANDHRA PRADESH': 'Andhra Pradesh',
+            'andhra pradesh': 'Andhra Pradesh',
+            
+            'TAMIL NADU': 'Tamil Nadu',
+            'Tamilnadu': 'Tamil Nadu',
+            
+            'UTTARANCHAL': 'Uttarakhand',
+            'Uttaranchal': 'Uttarakhand',
+            
+            'CHHATTISGARH': 'Chhattisgarh',
+            'Chhatisgarh': 'Chhattisgarh',
+            
+            # Standardize Union Territory names
+            'Andaman & Nicobar Islands': 'Andaman and Nicobar Islands',
+            'Jammu And Kashmir': 'Jammu and Kashmir',
+            'Jammu & Kashmir': 'Jammu and Kashmir',
+            'Dadra & Nagar Haveli': 'Dadra and Nagar Haveli and Daman and Diu',
+            'The Dadra And Nagar Haveli And Daman And Diu': 'Dadra and Nagar Haveli and Daman and Diu',
+            'Dadra and Nagar Haveli': 'Dadra and Nagar Haveli and Daman and Diu',
+            'Daman and Diu': 'Dadra and Nagar Haveli and Daman and Diu',
+            'Daman & Diu': 'Dadra and Nagar Haveli and Daman and Diu',
+            'Pondicherry': 'Puducherry',
+        }
+        
+        # Apply mappings
+        df['state'] = df['state'].replace(state_mappings)
+        
+        # Filter out invalid state names (cities, numbers, etc.)
+        invalid_states = [
+            '100000', 'Madanapalle', 'Jaipur', 'BALANAGAR', 'Darbhanga',
+            'Raja Annamalai Puram', 'Puttenahalli', 'Nagpur'
+        ]
+        df = df[~df['state'].isin(invalid_states)]
+        
+        # Optimize string columns to category
         df['state'] = df['state'].astype('category')
         df['district'] = df['district'].astype('category')
         
@@ -614,7 +666,8 @@ class DataService:
                 # Calculate ratio
                 ratio = total_updates / max(total_enrollments, 1)
                 
-                # Migration index calculation
+                # Migration index calculation (simplified for better readability)
+                # Higher index means more updates relative to enrollments (indicating migration)
                 migration_index = ratio * (1 + adult_updates / max(total_updates, 1))
                 
                 # Classification
@@ -628,11 +681,16 @@ class DataService:
                 # Adult update spike detection
                 adult_spike = adult_updates > (total_updates * 0.7) if total_updates > 0 else False
                 
+                # Clean district name formatting
+                import re
+                clean_district = re.sub(r'([a-z])([A-Z])', r'\1 \2', row['district'])
+                clean_district = clean_district.replace('?', '-')
+                
                 results.append({
                     'state': row['state'],
-                    'district': row['district'],
-                    'migration_index': round(migration_index, 3),
-                    'update_to_enrollment_ratio': round(ratio, 3),
+                    'district': clean_district,
+                    'migration_index': round(migration_index, 1),  # Simplified to 1 decimal
+                    'update_to_enrollment_ratio': round(ratio, 1),
                     'new_enrollments': int(total_enrollments),
                     'updates': int(total_updates),
                     'migration_classification': classification,
@@ -661,15 +719,15 @@ class DataService:
                 return []
             
             # Group by geographic areas
-            grouped = enrollment_df.groupby(['state', 'district', 'pincode']).agg({
+            grouped = enrollment_df.groupby(['state', 'district']).agg({
                 'young_count': 'sum',  # age 5-17
                 'adult_count': 'sum',   # age 18+
                 'total_count': 'sum'
             }).reset_index()
             
-            # For this analysis, we'll use young_count as a proxy for child enrollments
-            # since the original data doesn't have explicit age_0_5 column in the unified data
-            grouped['infant_count'] = grouped['young_count'] * 0.3  # Estimate 30% are younger children
+            # Use actual young_count instead of estimated infant_count to avoid zeros
+            # young_count represents children/youth enrollments which is what we're analyzing
+            grouped['child_enrollments'] = grouped['young_count']
             
             results = []
             
@@ -680,56 +738,45 @@ class DataService:
             state_stats = grouped.groupby('state').agg({
                 'young_count': ['mean', 'std'],
                 'adult_count': ['mean', 'std'],
-                'infant_count': ['mean', 'std']
+                'child_enrollments': ['mean', 'std']
             }).round(2)
             
             for _, row in grouped.iterrows():
                 try:
-                    state_mean_young = state_stats.loc[row['state'], ('young_count', 'mean')]
-                    state_mean_infant = state_stats.loc[row['state'], ('infant_count', 'mean')]
+                    state_mean_child = state_stats.loc[row['state'], ('child_enrollments', 'mean')]
                     
                     # Calculate enrollment density (actual vs expected based on state average)
-                    young_density = row['young_count'] / max(state_mean_young, 1)
-                    infant_density = row['infant_count'] / max(state_mean_infant, 1)
+                    child_density = row['child_enrollments'] / max(state_mean_child, 1)
                     
-                    # Focus on infant enrollment gaps (critical for child welfare)
-                    infant_gap_pct = max(0, (1 - infant_density) * 100)
-                    young_gap_pct = max(0, (1 - young_density) * 100)
+                    # Focus on child enrollment gaps (critical for child welfare)
+                    child_gap_pct = max(0, (1 - child_density) * 100)
                     
                     # Risk assessment
-                    if infant_gap_pct > 70:
+                    if child_gap_pct > 70:
                         risk_level = 'Critical'
-                    elif infant_gap_pct > 50:
+                    elif child_gap_pct > 50:
                         risk_level = 'High'
-                    elif infant_gap_pct > 25:
+                    elif child_gap_pct > 25:
                         risk_level = 'Medium'
                     else:
                         risk_level = 'Low'
-                        
-                    # Add both infant and young analysis
-                    results.append({
-                        'state': row['state'],
-                        'district': row['district'], 
-                        'pincode': row['pincode'],
-                        'infant_enrollment_density': round(infant_density, 3),
-                        'expected_population': int(state_mean_infant),
-                        'actual_enrollments': int(row['infant_count']),
-                        'gap_percentage': round(infant_gap_pct, 1),
-                        'risk_level': risk_level,
-                        'age_group': 'infant_0_5'
-                    })
                     
-                    if young_gap_pct > 30:  # Only include significant young gaps
+                    # Only include areas with significant gaps
+                    if child_gap_pct > 25:
+                        # Clean district name: add space before capital letters
+                        import re
+                        clean_district = re.sub(r'([a-z])([A-Z])', r'\1 \2', row['district'])
+                        clean_district = clean_district.replace('?', '-')
+                        
                         results.append({
                             'state': row['state'],
-                            'district': row['district'],
-                            'pincode': row['pincode'],
-                            'infant_enrollment_density': round(young_density, 3),
-                            'expected_population': int(state_mean_young),
-                            'actual_enrollments': int(row['young_count']),
-                            'gap_percentage': round(young_gap_pct, 1),
-                            'risk_level': 'High' if young_gap_pct > 60 else 'Medium',
-                            'age_group': 'young_5_17'
+                            'district': clean_district, 
+                            'infant_enrollment_density': round(child_density, 3),
+                            'expected_population': int(state_mean_child),
+                            'actual_enrollments': int(row['child_enrollments']),
+                            'gap_percentage': round(child_gap_pct, 1),
+                            'risk_level': risk_level,
+                            'age_group': 'children_youth'
                         })
                         
                 except Exception as row_error:
