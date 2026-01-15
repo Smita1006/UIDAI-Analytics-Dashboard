@@ -35,6 +35,8 @@ try:
 except ImportError:
     ARIMA_AVAILABLE = False
 
+from app.utils.performance import performance_monitor
+
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -82,47 +84,245 @@ class MLService:
             # Check if pre-trained models exist
             clustering_model_path = self.model_path / "clustering_optimal.pkl"
             anomaly_model_path = self.model_path / "anomaly_detector.pkl"
+            forecast_model_path = self.model_path / "forecast_model.pkl"
             
-            models_loaded = False
+            # Calculate current data hash to check if data changed
+            current_data_hash = hash(str(self.data_service.unified_data.values.tobytes()))
             
-            # Try to load existing models
+            models_loaded = 0
+            
+            # Try to load existing clustering model
             if clustering_model_path.exists():
                 try:
                     logger.info("📦 Loading pre-trained clustering model...")
                     saved_data = joblib.load(clustering_model_path)
-                    self.models['clustering_optimal'] = saved_data['model']
-                    self.scalers['clustering_optimal'] = saved_data['scaler']
-                    logger.info("✅ Clustering model loaded from cache")
-                    models_loaded = True
+                    
+                    # Check if data has changed since model training
+                    saved_hash = saved_data.get('data_hash', None)
+                    if saved_hash == current_data_hash:
+                        self.models['clustering_optimal'] = saved_data['model']
+                        self.scalers['clustering_optimal'] = saved_data['scaler']
+                        self.models['clustering_features'] = saved_data.get('features', [])
+                        logger.info("✅ Clustering model loaded from cache (data unchanged)")
+                        models_loaded += 1
+                    else:
+                        logger.info("🔄 Data changed - will retrain clustering model")
                 except Exception as e:
                     logger.warning(f"Failed to load clustering model: {e}")
             
+            # Try to load existing anomaly detection model
+            if anomaly_model_path.exists():
+                try:
+                    logger.info("📦 Loading pre-trained anomaly model...")
+                    saved_data = joblib.load(anomaly_model_path)
+                    
+                    # Check if data has changed since model training
+                    saved_hash = saved_data.get('data_hash', None)
+                    if saved_hash == current_data_hash:
+                        self.models['anomaly_detector'] = saved_data['model']
+                        self.scalers['anomaly_detector'] = saved_data['scaler']
+                        logger.info("✅ Anomaly detection model loaded from cache (data unchanged)")
+                        models_loaded += 1
+                    else:
+                        logger.info("🔄 Data changed - will retrain anomaly model")
+                except Exception as e:
+                    logger.warning(f"Failed to load anomaly model: {e}")
+            
             # If models don't exist or failed to load, train new ones
-            if not models_loaded:
-                logger.info("🔄 Pre-training geographic clustering model...")
+            if models_loaded == 0:
+                logger.info("🔄 Pre-training models for first time...")
                 await self.run_clustering(n_clusters=5, save_model=True)
+                await self._train_anomaly_model()
+            else:
+                logger.info(f"✅ Loaded {models_loaded} pre-trained models")
                 
         except Exception as e:
             logger.warning(f"⚠️ Could not pre-train models: {e}")
     
-    async def run_clustering(self, n_clusters: int = 5, save_model: bool = False) -> Dict[str, Any]:
-        """Run geographic clustering analysis"""
+    async def _train_anomaly_model(self):
+        """Train anomaly detection model once and save it"""
         try:
-            logger.info(f"🎯 Running geographic clustering with {n_clusters} clusters...")
-            
-            # Get data from data service
+            logger.info("🎯 Training anomaly detection model...")
             df = self.data_service.unified_data
             
-            # Run clustering in thread pool
-            result = await asyncio.get_event_loop().run_in_executor(
-                self.executor, self._run_clustering_sync, df, n_clusters, save_model
-            )
+            # Create features for anomaly detection
+            daily_data = df.groupby(['date']).agg({
+                'total_count': 'sum',
+                'young_count': 'sum',
+                'adult_count': 'sum'
+            }).reset_index()
             
-            return result
+            # Add derived features
+            daily_data['young_ratio'] = daily_data['young_count'] / (daily_data['total_count'] + 1)
+            daily_data['adult_ratio'] = daily_data['adult_count'] / (daily_data['total_count'] + 1)
+            daily_data['day_of_week'] = pd.to_datetime(daily_data['date']).dt.dayofweek
+            daily_data['is_weekend'] = daily_data['day_of_week'].isin([5, 6]).astype(int)
+            
+            # Prepare features
+            feature_cols = ['total_count', 'young_ratio', 'adult_ratio', 'is_weekend']
+            features = daily_data[feature_cols].fillna(0)
+            
+            # Scale features
+            scaler = StandardScaler()
+            features_scaled = scaler.fit_transform(features)
+            
+            # Train isolation forest
+            isolation_forest = IsolationForest(
+                contamination=0.1,
+                random_state=42,
+                n_jobs=1
+            )
+            isolation_forest.fit(features_scaled)
+            
+            # Save model
+            model_data = {
+                'model': isolation_forest,
+                'scaler': scaler,
+                'features': feature_cols,
+                'trained_at': datetime.now().isoformat(),
+                'data_hash': hash(str(self.data_service.unified_data.values.tobytes()))
+            }
+            anomaly_model_path = self.model_path / "anomaly_detector.pkl"
+            joblib.dump(model_data, anomaly_model_path)
+            
+            # Store in memory
+            self.models['anomaly_detector'] = isolation_forest
+            self.scalers['anomaly_detector'] = scaler
+            
+            logger.info("✅ Anomaly detection model trained and saved")
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to train anomaly model: {e}")
+    
+    @performance_monitor.track_time("clustering_analysis")
+    async def run_clustering(self, n_clusters: int = 5, save_model: bool = False) -> Dict[str, Any]:
+        """Run geographic clustering analysis using pre-trained model if available"""
+        try:
+            # Use pre-trained model if available and clusters match
+            model_key = f'clustering_{n_clusters}'
+            if (model_key in self.models or 'clustering_optimal' in self.models) and not save_model:
+                logger.info(f"🚀 Using pre-trained clustering model for {n_clusters} clusters...")
+                
+                # Use optimal model if exact match not found
+                if model_key not in self.models:
+                    model_key = 'clustering_optimal'
+                
+                # Get pre-computed features and apply model
+                df = self.data_service.unified_data
+                result = await asyncio.get_event_loop().run_in_executor(
+                    self.executor, self._apply_pretrained_clustering, df, model_key, n_clusters
+                )
+                return result
+            else:
+                logger.info(f"🎯 Training new clustering model with {n_clusters} clusters...")
+                
+                # Get data from data service
+                df = self.data_service.unified_data
+                
+                # Run clustering in thread pool
+                result = await asyncio.get_event_loop().run_in_executor(
+                    self.executor, self._run_clustering_sync, df, n_clusters, save_model
+                )
+                
+                return result
             
         except Exception as e:
             logger.error(f"❌ Error in clustering: {e}")
             raise
+    
+    def _apply_pretrained_clustering(self, df: pd.DataFrame, model_key: str, n_clusters: int) -> Dict[str, Any]:
+        """Apply pre-trained clustering model without retraining"""
+        try:
+            model = self.models[model_key]
+            scaler = self.scalers[model_key]
+            
+            # Recreate the same features used during training
+            district_features = df.groupby(['state', 'district']).agg({
+                'total_count': ['sum', 'mean', 'std', 'min', 'max'],
+                'young_count': ['sum', 'mean'],
+                'adult_count': ['sum', 'mean'],
+                'young_ratio': ['mean', 'std'],
+                'adult_ratio': ['mean', 'std'],
+                'is_weekend': 'mean'
+            }).fillna(0)
+            
+            # Flatten column names
+            district_features.columns = ['_'.join(col).strip() if col[1] else col[0] 
+                                       for col in district_features.columns]
+            
+            # Recreate derived features
+            district_features['young_ratio_avg'] = (
+                district_features['young_count_sum'] / 
+                (district_features['total_count_sum'] + 1)
+            )
+            district_features['adult_ratio_avg'] = (
+                district_features['adult_count_sum'] / 
+                (district_features['total_count_sum'] + 1)
+            )
+            district_features['volume_consistency'] = (
+                district_features['total_count_std'] / 
+                (district_features['total_count_mean'] + 1)
+            )
+            district_features['volume_range'] = (
+                district_features['total_count_max'] - district_features['total_count_min']
+            )
+            district_features['volume_range_ratio'] = (
+                district_features['volume_range'] / 
+                (district_features['total_count_mean'] + 1)
+            )
+            district_features['weekend_activity'] = district_features['is_weekend_mean']
+            district_features['young_ratio_stability'] = 1 / (district_features['young_ratio_std'] + 0.01)
+            district_features['adult_ratio_stability'] = 1 / (district_features['adult_ratio_std'] + 0.01)
+            district_features['avg_daily_volume'] = district_features['total_count_mean']
+            
+            # Select same features used during training
+            feature_cols = [
+                'total_count_sum', 'total_count_mean', 'volume_consistency',
+                'young_ratio_avg', 'adult_ratio_avg',
+                'volume_range_ratio', 'weekend_activity',
+                'young_ratio_stability', 'adult_ratio_stability',
+                'avg_daily_volume'
+            ]
+            features = district_features[feature_cols].fillna(0)
+            
+            # Scale features with pre-trained scaler
+            features_scaled = scaler.transform(features)
+            
+            # Predict using pre-trained model
+            if hasattr(model, 'predict'):
+                cluster_labels = model.predict(features_scaled)
+            else:
+                # For models that need fit_predict, we need to retrain
+                cluster_labels = model.fit_predict(features_scaled)
+            
+            # Store cluster assignments
+            district_features['cluster'] = cluster_labels
+            
+            # Calculate cluster summaries
+            cluster_summary = self._calculate_cluster_summary(district_features, cluster_labels)
+            
+            # Calculate quality metrics
+            silhouette_avg = silhouette_score(features_scaled, cluster_labels)
+            davies_bouldin = davies_bouldin_score(features_scaled, cluster_labels)
+            calinski_harabasz = calinski_harabasz_score(features_scaled, cluster_labels)
+            
+            return {
+                'clusters': cluster_summary,
+                'district_assignments': district_features[['cluster']].reset_index().to_dict('records'),
+                'n_clusters': len(np.unique(cluster_labels)),
+                'quality_metrics': {
+                    'silhouette_score': float(silhouette_avg),
+                    'davies_bouldin_score': float(davies_bouldin),
+                    'calinski_harabasz_score': float(calinski_harabasz)
+                },
+                'used_pretrained': True,
+                'model_key': model_key
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Error applying pre-trained clustering: {e}")
+            # Fallback to retraining
+            return self._run_clustering_sync(df, n_clusters, False)
     
     def _run_clustering_sync(self, df: pd.DataFrame, n_clusters: int, save_model: bool) -> Dict[str, Any]:
         """Enhanced synchronous clustering with more features"""
@@ -299,22 +499,90 @@ class MLService:
             'cluster_names': cluster_names
         }
     
+    @performance_monitor.track_time("anomaly_detection")
     async def detect_anomalies(self, contamination: float = 0.1) -> Dict[str, Any]:
-        """Run anomaly detection on service patterns"""
+        """Run anomaly detection on service patterns using pre-trained model if available"""
         try:
-            logger.info(f"🚨 Running anomaly detection with {contamination} contamination...")
-            
-            df = self.data_service.unified_data
-            
-            result = await asyncio.get_event_loop().run_in_executor(
-                self.executor, self._detect_anomalies_sync, df, contamination
-            )
-            
-            return result
+            # Use pre-trained anomaly model if available
+            if 'anomaly_detector' in self.models and 'anomaly_detector' in self.scalers:
+                logger.info(f"🚀 Using pre-trained anomaly detection model...")
+                
+                df = self.data_service.unified_data
+                result = await asyncio.get_event_loop().run_in_executor(
+                    self.executor, self._apply_pretrained_anomaly_detection, df, contamination
+                )
+                return result
+            else:
+                logger.info(f"🚨 Training new anomaly detection model with {contamination} contamination...")
+                
+                df = self.data_service.unified_data
+                result = await asyncio.get_event_loop().run_in_executor(
+                    self.executor, self._detect_anomalies_sync, df, contamination
+                )
+                return result
             
         except Exception as e:
             logger.error(f"❌ Error in anomaly detection: {e}")
             raise
+    
+    def _apply_pretrained_anomaly_detection(self, df: pd.DataFrame, contamination: float) -> Dict[str, Any]:
+        """Apply pre-trained anomaly detection model"""
+        try:
+            model = self.models['anomaly_detector']
+            scaler = self.scalers['anomaly_detector']
+            
+            # Prepare daily aggregate data (same as training)
+            daily_data = df.groupby(['date']).agg({
+                'total_count': 'sum',
+                'young_count': 'sum',
+                'adult_count': 'sum'
+            }).reset_index()
+            
+            # Add derived features (same as training)
+            daily_data['young_ratio'] = daily_data['young_count'] / (daily_data['total_count'] + 1)
+            daily_data['adult_ratio'] = daily_data['adult_count'] / (daily_data['total_count'] + 1)
+            daily_data['day_of_week'] = pd.to_datetime(daily_data['date']).dt.dayofweek
+            daily_data['is_weekend'] = daily_data['day_of_week'].isin([5, 6]).astype(int)
+            
+            # Prepare features (same order as training)
+            feature_cols = ['total_count', 'young_ratio', 'adult_ratio', 'is_weekend']
+            features = daily_data[feature_cols].fillna(0)
+            
+            # Scale features with pre-trained scaler
+            features_scaled = scaler.transform(features)
+            
+            # Predict anomalies using pre-trained model
+            anomaly_scores = model.decision_function(features_scaled)
+            is_anomaly = model.predict(features_scaled) == -1
+            
+            # Add results to daily data
+            daily_data['anomaly_score'] = anomaly_scores
+            daily_data['is_anomaly'] = is_anomaly
+            
+            # Calculate statistics
+            anomaly_count = is_anomaly.sum()
+            total_days = len(daily_data)
+            anomaly_percentage = (anomaly_count / total_days) * 100 if total_days > 0 else 0
+            
+            # Get top anomalies
+            anomaly_data = daily_data[daily_data['is_anomaly']].copy()
+            if len(anomaly_data) > 0:
+                anomaly_data = anomaly_data.sort_values('anomaly_score').head(20)
+            
+            return {
+                'total_anomalies': int(anomaly_count),
+                'anomaly_percentage': float(anomaly_percentage),
+                'anomalies': anomaly_data.to_dict('records') if len(anomaly_data) > 0 else [],
+                'daily_scores': daily_data[['date', 'anomaly_score', 'is_anomaly']].to_dict('records'),
+                'used_pretrained': True,
+                'contamination_used': contamination,
+                'summary': f"Detected {anomaly_count} anomalies ({anomaly_percentage:.1f}%) using pre-trained model"
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Error applying pre-trained anomaly detection: {e}")
+            # Fallback to training new model
+            return self._detect_anomalies_sync(df, contamination)
     
     def _detect_anomalies_sync(self, df: pd.DataFrame, contamination: float) -> Dict[str, Any]:
         """Enhanced synchronous anomaly detection with multiple sophisticated methods"""
@@ -684,6 +952,7 @@ class MLService:
             }
         }
     
+    @performance_monitor.track_time("forecast_generation")
     async def generate_forecast(self, days: int = 7) -> Dict[str, Any]:
         """Generate time series forecasting"""
         try:

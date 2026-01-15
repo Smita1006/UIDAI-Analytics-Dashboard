@@ -45,23 +45,53 @@ class DataService:
             logger.error(f"❌ Failed to initialize data service: {e}")
             raise
     
+    def _safe_fillna(self, df: pd.DataFrame, fill_value=0) -> pd.DataFrame:
+        """Safely fill NA values handling categorical columns properly"""
+        df = df.copy()
+        for col in df.columns:
+            if pd.api.types.is_categorical_dtype(df[col]):
+                if col in ['state', 'district']:
+                    # For geographic categorical columns, they shouldn't have missing values in a merge
+                    # If they do, use 'Unknown' instead of numeric fill_value
+                    if df[col].isna().any():
+                        if 'Unknown' not in df[col].cat.categories:
+                            df[col] = df[col].cat.add_categories(['Unknown'])
+                        df[col] = df[col].fillna('Unknown')
+                else:
+                    # For other categorical columns, convert to object first
+                    df[col] = df[col].astype('object').fillna(fill_value)
+            else:
+                # For non-categorical columns, fillna normally
+                df[col] = df[col].fillna(fill_value)
+        return df
+    
     async def _load_or_process_data(self):
         """Load processed data or process raw data if needed"""
         processed_file = self.processed_path / "unified_optimized.parquet"
         
         if processed_file.exists():
-            logger.info("📂 Loading processed data from parquet...")
+            logger.info("📂 Loading processed data from optimized parquet...")
+            # Use memory mapping and multiple threads for faster loading
             self.unified_data = await asyncio.get_event_loop().run_in_executor(
-                self.executor, pd.read_parquet, processed_file
+                self.executor, 
+                lambda: pd.read_parquet(processed_file, engine='pyarrow', use_threads=True)
             )
+            logger.info(f"✅ Loaded {len(self.unified_data):,} records from cache")
         else:
             logger.info("⚙️ Processing raw data...")
             await self._process_raw_data()
             
-            # Save optimized format
+            # Save optimized format with better compression and indexing
+            logger.info("💾 Saving processed data with optimized compression...")
             await asyncio.get_event_loop().run_in_executor(
                 self.executor, 
-                lambda: self.unified_data.to_parquet(processed_file, engine='pyarrow', compression='snappy')
+                lambda: self.unified_data.to_parquet(
+                    processed_file, 
+                    engine='pyarrow', 
+                    compression='lz4',  # Faster than snappy for loading
+                    index=False,
+                    row_group_size=50000  # Optimize for memory usage
+                )
             )
     
     async def _process_raw_data(self):
@@ -650,8 +680,18 @@ class DataService:
             }).reset_index()
             updates['total_updates'] = updates['young_count'] + updates['adult_count']
             
+            # Convert categorical columns to object to avoid merge issues
+            for col in ['state', 'district']:
+                if pd.api.types.is_categorical_dtype(updates[col]):
+                    updates[col] = updates[col].astype('object')
+                if pd.api.types.is_categorical_dtype(enrollments[col]):
+                    enrollments[col] = enrollments[col].astype('object')
+            
             # Calculate migration index
-            merged = pd.merge(updates, enrollments, on=['state', 'district'], suffixes=('_updates', '_enrollments'), how='outer').fillna(0)
+            merged = pd.merge(updates, enrollments, on=['state', 'district'], suffixes=('_updates', '_enrollments'), how='outer')
+            
+            # Now we can safely fillna since categorical columns are converted to object
+            merged = merged.fillna(0)
             
             results = []
             for _, row in merged.iterrows():

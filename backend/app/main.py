@@ -33,6 +33,7 @@ from app.services.social_impact_service import SocialImpactService
 from app.models.api_models import *
 from app.utils.cache import CacheManager
 from app.utils.config import Settings
+from app.utils.performance import performance_monitor
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -153,7 +154,7 @@ async def get_summary():
         summary = await data_service.get_summary()
         
         if cache_manager:
-            cache_manager.set("summary", summary, ttl=3600)
+            cache_manager.set("summary", summary, ttl=86400)  # 24 hours - data doesn't change
         return APIResponse(success=True, data=summary)
         
     except Exception as e:
@@ -350,6 +351,45 @@ async def health_check():
         }
     }
 
+@app.get("/api/performance", response_model=APIResponse)
+async def get_performance_stats():
+    """Get performance statistics and optimization status"""
+    try:
+        performance_stats = performance_monitor.get_stats()
+        
+        # Add model cache status
+        model_cache_status = {
+            'clustering_models_cached': len([k for k in ml_service.models.keys() if 'clustering' in k]) if ml_service else 0,
+            'anomaly_models_cached': 'anomaly_detector' in ml_service.models if ml_service else False,
+            'scalers_cached': len(ml_service.scalers) if ml_service else 0
+        }
+        
+        # Add cache statistics
+        cache_stats = {
+            'cache_hits': cache_manager.stats['hits'] if cache_manager else 0,
+            'cache_misses': cache_manager.stats['misses'] if cache_manager else 0,
+            'cache_hit_rate': (cache_manager.stats['hits'] / max(cache_manager.stats['hits'] + cache_manager.stats['misses'], 1)) * 100 if cache_manager else 0
+        }
+        
+        return APIResponse(
+            success=True,
+            data={
+                'performance_stats': performance_stats,
+                'model_cache_status': model_cache_status,
+                'cache_stats': cache_stats,
+                'optimization_tips': [
+                    "Models are pre-trained and cached for faster response",
+                    "API responses are cached to reduce computation",
+                    "Use pre_warm_system.py to optimize performance"
+                ]
+            },
+            message="Performance statistics retrieved"
+        )
+        
+    except Exception as e:
+        logger.error(f"Error getting performance stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/", response_model=APIResponse)
 async def root():
     """API root endpoint"""
@@ -528,9 +568,9 @@ async def generate_forecast(days: int = 7):
         
         forecast_result = await ml_service.generate_forecast(days=days)
         
-        # Cache the result for 2 hours (7200 seconds)
+        # Cache the result for 12 hours (43200 seconds) - data doesn't change frequently
         if cache_manager and forecast_result:
-            cache_manager.set(cache_key, forecast_result, ttl=7200)
+            cache_manager.set(cache_key, forecast_result, ttl=43200)
         
         return APIResponse(
             success=True,
@@ -544,9 +584,27 @@ async def generate_forecast(days: int = 7):
 
 @app.post("/api/ml/clustering", response_model=APIResponse)
 async def run_clustering(n_clusters: int = 5):
-    """Run geographic clustering analysis"""
+    """Run geographic clustering analysis with aggressive caching"""
     try:
+        # Create cache key
+        cache_key = f"clustering_analysis_{n_clusters}"
+        
+        # Check cache first (24 hour TTL since data doesn't change)
+        if cache_manager:
+            cached_result = cache_manager.get(cache_key)
+            if cached_result:
+                return APIResponse(
+                    success=True,
+                    data=cached_result,
+                    message=f"Clustering analysis (cached) completed with {n_clusters} clusters"
+                )
+        
         clustering_result = await ml_service.run_clustering(n_clusters=n_clusters)
+        
+        # Cache the result for 24 hours (86400 seconds)
+        if cache_manager and clustering_result:
+            cache_manager.set(cache_key, clustering_result, ttl=86400)
+        
         return APIResponse(
             success=True,
             data=clustering_result,
