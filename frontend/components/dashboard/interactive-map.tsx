@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Card,
   CardContent,
@@ -37,8 +37,8 @@ export function InteractiveMap({
   const [isLoading, setIsLoading] = useState(true);
   const [selectedLayer, setSelectedLayer] = useState("volume");
 
-  // Indian state coordinates (approximates)
-  const stateCoordinates = {
+  // Indian state coordinates (approximates) - memoized to avoid re-creation
+  const stateCoordinates = useMemo(() => ({
     "Andhra Pradesh": [15.9129, 79.74],
     "Arunachal Pradesh": [28.218, 94.7278],
     Assam: [26.2006, 92.9376],
@@ -70,7 +70,7 @@ export function InteractiveMap({
     Delhi: [28.7041, 77.1025],
     "Jammu and Kashmir": [34.0837, 74.7973],
     Ladakh: [34.1526, 77.577],
-  } as const;
+  }), []);
 
   useEffect(() => {
     const loadMapData = async () => {

@@ -32,7 +32,7 @@ export function SocialImpactTab() {
       const data = await res.json();
       setImpactData(data.data);
     } catch (error) {
-      console.error("Error fetching social impact:", error);
+      // Error fetching social impact data
     }
     setLoading(false);
   };
@@ -238,7 +238,7 @@ export function SocialImpactTab() {
                   <li className="flex items-start gap-2">
                     <div className="w-1.5 h-1.5 rounded-full bg-amber-600 mt-2 flex-shrink-0" />
                     <span className="text-sm text-gray-700">
-                      Target: Align rural-urban distribution with India's demographic ratio (65% rural, 35% urban)
+                      Target: Align rural-urban distribution with India&apos;s demographic ratio (65% rural, 35% urban)
                     </span>
                   </li>
                   <li className="flex items-start gap-2">

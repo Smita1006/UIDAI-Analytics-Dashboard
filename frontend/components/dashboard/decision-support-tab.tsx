@@ -50,7 +50,7 @@ export function DecisionSupportTab() {
       const resourceData = await resourceRes.json();
       setResourceGuidance(resourceData.data);
     } catch (error) {
-      console.error("Error fetching guidance:", error);
+      // Error fetching guidance data
     }
     setLoading(false);
   };

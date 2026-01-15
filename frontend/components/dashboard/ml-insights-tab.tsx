@@ -83,7 +83,6 @@ export function MLInsightsTab({ data }: MLInsightsTabProps) {
             patternsData = patternsData.data;
           }
 
-          console.log("Pattern Insights Loaded:", patternsData);
           setPatternInsights(patternsData);
         }
 

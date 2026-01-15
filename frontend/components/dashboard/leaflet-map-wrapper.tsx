@@ -43,7 +43,9 @@ export function LeafletMapWrapper({
         mapContainerRef.current.innerHTML = "";
       }
 
-      // Create new map
+      // Create new map - ensure container exists
+      if (!mapContainerRef.current) return;
+      
       const map = L.map(mapContainerRef.current, {
         center: [20.5937, 78.9629],
         zoom: 5,

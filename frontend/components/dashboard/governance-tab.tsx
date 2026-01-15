@@ -58,7 +58,7 @@ export function GovernanceTab() {
       const pincodeData = await pincodeRes.json();
       setPincodeStability(pincodeData.data);
     } catch (error) {
-      console.error("Error fetching governance data:", error);
+      // Error fetching governance data
     }
     setLoading(false);
   };
