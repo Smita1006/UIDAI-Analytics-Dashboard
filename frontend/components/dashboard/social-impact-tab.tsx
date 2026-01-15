@@ -28,8 +28,7 @@ export function SocialImpactTab() {
   const fetchSocialImpact = async () => {
     setLoading(true);
     try {
-      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-      const res = await fetch(`${API_BASE_URL}/api/social-impact/comprehensive`);
+      const res = await fetch("http://localhost:8000/api/social-impact/comprehensive");
       const data = await res.json();
       setImpactData(data.data);
     } catch (error) {
