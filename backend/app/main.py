@@ -73,8 +73,9 @@ async def lifespan(app: FastAPI):
     logger.info("🚀 Starting UIDAI Analytics API...")
     
     try:
-        # Initialize cache
-        cache_manager = CacheManager()
+        # Initialize disk-based cache (saves RAM on 4GB VPS)
+        cache_manager = CacheManager(cache_dir="backend/data/cache")
+        logger.info("✅ Disk-based cache initialized")
         
         # Initialize governance service (first for audit trail)
         governance_service = GovernanceService()
@@ -3835,6 +3836,61 @@ async def get_disability_support_analysis():
         
     except Exception as e:
         logger.error(f"Disability support analysis error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ═══════════════════════════════════════════════════════════════════
+# CACHE MANAGEMENT ENDPOINTS
+# ═══════════════════════════════════════════════════════════════════
+
+@app.get("/api/cache/stats")
+async def get_cache_stats():
+    """Get disk cache statistics and usage"""
+    try:
+        if not cache_manager:
+            return APIResponse(
+                success=False,
+                data={},
+                message="Cache manager not initialized"
+            )
+        
+        stats = cache_manager.get_stats()
+        usage = cache_manager.get_memory_usage()
+        
+        return APIResponse(
+            success=True,
+            data={
+                'statistics': stats,
+                'disk_usage': usage,
+                'cache_enabled': True
+            },
+            message=f"Disk cache: {stats['size']} entries, {usage['cache_size_mb']} MB"
+        )
+        
+    except Exception as e:
+        logger.error(f"Cache stats error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/cache/clear")
+async def clear_cache():
+    """Clear all cache entries (admin endpoint)"""
+    try:
+        if not cache_manager:
+            return APIResponse(
+                success=False,
+                data={},
+                message="Cache manager not initialized"
+            )
+        
+        cache_manager.clear()
+        
+        return APIResponse(
+            success=True,
+            data={},
+            message="Disk cache cleared successfully"
+        )
+        
+    except Exception as e:
+        logger.error(f"Cache clear error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
