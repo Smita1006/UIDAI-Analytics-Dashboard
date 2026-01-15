@@ -38,23 +38,25 @@ export function GovernanceTab() {
   const fetchGovernanceData = async () => {
     setLoading(true);
     try {
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      
       // Fetch data hash
-      const hashRes = await fetch("http://localhost:8000/api/governance/data-hash");
+      const hashRes = await fetch(`${API_BASE_URL}/api/governance/data-hash`);
       const hashData = await hashRes.json();
       setDataHash(hashData.data?.hash || hashData.data?.hash_value || "");
 
       // Fetch audit trail
-      const auditRes = await fetch("http://localhost:8000/api/governance/audit-trail");
+      const auditRes = await fetch(`${API_BASE_URL}/api/governance/audit-trail`);
       const auditData = await auditRes.json();
       setAuditTrail(auditData.data);
 
       // Fetch pipeline status
-      const pipelineRes = await fetch("http://localhost:8000/api/governance/pipeline-status");
+      const pipelineRes = await fetch(`${API_BASE_URL}/api/governance/pipeline-status`);
       const pipelineData = await pipelineRes.json();
       setPipelineStatus(pipelineData.data);
 
       // Fetch pincode stability
-      const pincodeRes = await fetch("http://localhost:8000/api/governance/pincode-stability");
+      const pincodeRes = await fetch(`${API_BASE_URL}/api/governance/pincode-stability`);
       const pincodeData = await pincodeRes.json();
       setPincodeStability(pincodeData.data);
     } catch (error) {

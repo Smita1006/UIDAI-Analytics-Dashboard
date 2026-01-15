@@ -31,20 +31,22 @@ export function DecisionSupportTab() {
   const fetchGuidance = async () => {
     setLoading(true);
     try {
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      
       // Fetch executive dashboard
-      const execRes = await fetch("http://localhost:8000/api/guidance/executive-dashboard");
+      const execRes = await fetch(`${API_BASE_URL}/api/guidance/executive-dashboard`);
       const execData = await execRes.json();
       setExecutiveDashboard(execData.data);
 
       // Fetch anomaly guidance
-      const anomalyRes = await fetch("http://localhost:8000/api/guidance/anomalies", {
+      const anomalyRes = await fetch(`${API_BASE_URL}/api/guidance/anomalies`, {
         method: "POST",
       });
       const anomalyData = await anomalyRes.json();
       setAnomalyGuidance(anomalyData.data);
 
       // Fetch resource allocation guidance
-      const resourceRes = await fetch("http://localhost:8000/api/guidance/resource-allocation", {
+      const resourceRes = await fetch(`${API_BASE_URL}/api/guidance/resource-allocation`, {
         method: "POST",
       });
       const resourceData = await resourceRes.json();
