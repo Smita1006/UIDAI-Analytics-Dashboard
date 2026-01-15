@@ -74,7 +74,7 @@ async def lifespan(app: FastAPI):
     
     try:
         # Initialize disk-based cache (saves RAM on 4GB VPS)
-        cache_manager = CacheManager(cache_dir="backend/data/cache")
+        cache_manager = CacheManager(cache_dir="data/cache")
         logger.info("✅ Disk-based cache initialized")
         
         # Initialize governance service (first for audit trail)
