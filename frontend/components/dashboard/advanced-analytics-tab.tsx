@@ -25,7 +25,7 @@ import {
 import { useState, useEffect } from "react";
 import { apiClient } from "@/lib/api-client";
 
-interface NewFeaturesTabProps {
+interface AdvancedAnalyticsTabProps {
   data?: any;
 }
 
@@ -69,7 +69,7 @@ interface CenterAnomalyItem {
   daily_average: number;
 }
 
-export function NewFeaturesTab({ data }: NewFeaturesTabProps) {
+export function AdvancedAnalyticsTab({ data }: AdvancedAnalyticsTabProps) {
   const [migrantData, setMigrantData] = useState<MigrantData[]>([]);
   const [invisibleData, setInvisibleData] = useState<InvisibleCitizensItem[]>(
     []

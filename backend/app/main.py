@@ -2967,6 +2967,15 @@ async def get_simulator_baseline():
 async def get_pipeline_status():
     """Get all pipeline execution statuses"""
     try:
+        # Check cache first (short TTL as pipeline status changes frequently)
+        cached_data = cache_manager.get("governance_pipeline_status") if cache_manager else None
+        if cached_data:
+            return APIResponse(
+                success=True,
+                data=cached_data,
+                message=f"{cached_data['total_stages']} pipeline stages tracked (cached)"
+            )
+        
         # Get actual pipeline stages from governance service
         pipelines = governance_service.pipeline_stages
         
@@ -3011,13 +3020,19 @@ async def get_pipeline_status():
                 }
             }
         
+        result = {
+            'stages': pipelines,
+            'total_stages': len(pipelines),
+            'all_success': all(s.get('status') == 'SUCCESS' for s in pipelines.values())
+        }
+        
+        # Cache for 6 hours (pipeline status is static during runtime)
+        if cache_manager:
+            cache_manager.set("governance_pipeline_status", result, ttl=21600)
+        
         return APIResponse(
             success=True,
-            data={
-                'stages': pipelines,
-                'total_stages': len(pipelines),
-                'all_success': all(s.get('status') == 'SUCCESS' for s in pipelines.values())
-            },
+            data=result,
             message=f"{len(pipelines)} pipeline stages tracked"
         )
     except Exception as e:
@@ -3029,17 +3044,35 @@ async def get_pipeline_status():
 async def get_audit_trail(event_type: Optional[str] = None):
     """Get audit trail with optional filtering"""
     try:
+        # Create cache key based on event_type filter
+        cache_key = f"governance_audit_trail_{event_type or 'all'}"
+        
+        # Check cache first (10 minute TTL for audit trail)
+        cached_data = cache_manager.get(cache_key) if cache_manager else None
+        if cached_data:
+            return APIResponse(
+                success=True,
+                data=cached_data,
+                message="Audit trail retrieved (cached)"
+            )
+        
         trail = governance_service.get_audit_trail(event_type)
         integrity_valid = governance_service.verify_audit_chain()
         
+        result = {
+            'events': trail,
+            'total_events': len(trail),
+            'integrity_verified': integrity_valid,
+            'quantum_safe': True
+        }
+        
+        # Cache for 12 hours (audit trail is static during runtime)
+        if cache_manager:
+            cache_manager.set(cache_key, result, ttl=43200)
+        
         return APIResponse(
             success=True,
-            data={
-                'events': trail,
-                'total_events': len(trail),
-                'integrity_verified': integrity_valid,
-                'quantum_safe': True
-            },
+            data=result,
             message="Audit trail retrieved"
         )
     except Exception as e:
@@ -3212,17 +3245,32 @@ async def perform_denominator_checks():
 async def get_data_hash():
     """Get quantum-safe hash of current dataset"""
     try:
+        # Check cache first (15 minutes TTL since data hash changes when data is updated)
+        cached_data = cache_manager.get("governance_data_hash") if cache_manager else None
+        if cached_data:
+            return APIResponse(
+                success=True,
+                data=cached_data,
+                message="Dataset hash computed (cached)"
+            )
+        
         data_hash = governance_service.hash_dataframe(data_service.unified_data)
+        
+        result = {
+            'hash': data_hash,
+            'algorithm': 'SHA3-256 (quantum-resistant)',
+            'rows': len(data_service.unified_data),
+            'columns': len(data_service.unified_data.columns),
+            'timestamp': datetime.now().isoformat()
+        }
+        
+        # Cache for 24 hours (data hash doesn't change during runtime)
+        if cache_manager:
+            cache_manager.set("governance_data_hash", result, ttl=86400)
         
         return APIResponse(
             success=True,
-            data={
-                'hash': data_hash,
-                'algorithm': 'SHA3-256 (quantum-resistant)',
-                'rows': len(data_service.unified_data),
-                'columns': len(data_service.unified_data.columns),
-                'timestamp': datetime.now().isoformat()
-            },
+            data=result,
             message="Dataset hash computed"
         )
     except Exception as e:
@@ -3243,6 +3291,15 @@ async def get_pincode_stability():
     - Emerging: Increasing trend
     """
     try:
+        # Check cache first (20 minutes TTL since this is computationally expensive)
+        cached_data = cache_manager.get("governance_pincode_stability") if cache_manager else None
+        if cached_data:
+            return APIResponse(
+                success=True,
+                data=cached_data,
+                message=f"Analyzed {cached_data['summary']['total_analyzed']} pincodes (cached)"
+            )
+        
         df = data_service.unified_data
         df_enroll = df[df['service_type'] == 'enrolment'] if 'service_type' in df.columns else df
         
@@ -3313,20 +3370,26 @@ async def get_pincode_stability():
             'emerging': [p for p, c in list(classifications.items())[:100] if c == 'Emerging'][:5]
         }
         
+        result = {
+            'summary': {
+                'stable': stable_count,
+                'volatile': volatile_count,
+                'declining': declining_count,
+                'dormant': dormant_count,
+                'emerging': emerging_count,
+                'total_analyzed': len(classifications)
+            },
+            'examples': examples,
+            'classifications': classifications
+        }
+        
+        # Cache for 24 hours (data is static during runtime)
+        if cache_manager:
+            cache_manager.set("governance_pincode_stability", result, ttl=86400)
+        
         return APIResponse(
             success=True,
-            data={
-                'summary': {
-                    'stable': stable_count,
-                    'volatile': volatile_count,
-                    'declining': declining_count,
-                    'dormant': dormant_count,
-                    'emerging': emerging_count,
-                    'total_analyzed': len(classifications)
-                },
-                'examples': examples,
-                'classifications': classifications
-            },
+            data=result,
             message=f"Analyzed {len(classifications)} pincodes"
         )
         
@@ -3381,7 +3444,16 @@ async def get_comprehensive_guidance():
     - Implementation roadmaps with timelines and budgets
     """
     try:
+        # Check cache first
+        cached_data = cache_manager.get("guidance_comprehensive") if cache_manager else None
+        if cached_data:
+            return APIResponse(success=True, data=cached_data, message="Comprehensive administrative guidance generated (cached)")
+        
         guidance = await guidance_service.generate_comprehensive_guidance()
+        
+        # Cache the results for 24 hours (data doesn't change during runtime)
+        if cache_manager:
+            cache_manager.set("guidance_comprehensive", guidance, ttl=86400)
         
         governance_service.log_audit_event('COMPREHENSIVE_GUIDANCE_GENERATED', {
             'total_recommendations': guidance['priority_breakdown'],
@@ -3541,6 +3613,11 @@ async def get_executive_dashboard():
     - Next review date
     """
     try:
+        # Check cache first
+        cached_data = cache_manager.get("guidance_executive") if cache_manager else None
+        if cached_data:
+            return APIResponse(success=True, data=cached_data, message="Executive dashboard ready (cached)")
+        
         # Get comprehensive guidance
         full_guidance = await guidance_service.generate_comprehensive_guidance()
         
@@ -3551,6 +3628,10 @@ async def get_executive_dashboard():
             'executive_dashboard': full_guidance['executive_dashboard'],
             'generated_at': full_guidance['generated_at']
         }
+        
+        # Cache the executive dashboard for 24 hours (data doesn't change during runtime)
+        if cache_manager:
+            cache_manager.set("guidance_executive", dashboard, ttl=86400)
         
         return APIResponse(
             success=True,
@@ -3583,7 +3664,20 @@ async def get_comprehensive_social_impact():
     **Returns:** Overall impact score (0-100) with detailed breakdowns
     """
     try:
+        # Check cache first (25 minutes TTL for comprehensive analysis)
+        cached_data = cache_manager.get("social_impact_comprehensive") if cache_manager else None
+        if cached_data:
+            return APIResponse(
+                success=True,
+                data=cached_data,
+                message=f"Social impact analysis complete: {cached_data['impact_level']} (cached)"
+            )
+        
         impact_data = await social_impact_service.calculate_comprehensive_impact()
+        
+        # Cache for 24 hours (data doesn't change during runtime)
+        if cache_manager:
+            cache_manager.set("social_impact_comprehensive", impact_data, ttl=86400)
         
         return APIResponse(
             success=True,
@@ -3610,6 +3704,15 @@ async def get_accessibility_analysis():
     **India Demographics:** ~65% rural, ~35% urban
     """
     try:
+        # Check cache first (20 minutes TTL)
+        cached_data = cache_manager.get("social_impact_accessibility") if cache_manager else None
+        if cached_data:
+            return APIResponse(
+                success=True,
+                data=cached_data,
+                message="Accessibility analysis complete (cached)"
+            )
+        
         impact_data = await social_impact_service.calculate_comprehensive_impact()
         
         accessibility = {
@@ -3621,6 +3724,10 @@ async def get_accessibility_analysis():
             },
             'recommendation': impact_data['accessibility']['recommendation']
         }
+        
+        # Cache for 24 hours (data doesn't change during runtime)
+        if cache_manager:
+            cache_manager.set("social_impact_accessibility", accessibility, ttl=86400)
         
         return APIResponse(
             success=True,
@@ -3645,6 +3752,15 @@ async def get_demographic_reach():
     - Outreach recommendations
     """
     try:
+        # Check cache first (20 minutes TTL)
+        cached_data = cache_manager.get("social_impact_demographic") if cache_manager else None
+        if cached_data:
+            return APIResponse(
+                success=True,
+                data=cached_data,
+                message="Demographic reach analysis complete (cached)"
+            )
+        
         impact_data = await social_impact_service.calculate_comprehensive_impact()
         
         demographic = {
@@ -3654,6 +3770,10 @@ async def get_demographic_reach():
             'gender_balance_ratio': impact_data['demographic_reach']['gender_balance_ratio'],
             'recommendation': impact_data['demographic_reach']['recommendation']
         }
+        
+        # Cache for 24 hours (data doesn't change during runtime)
+        if cache_manager:
+            cache_manager.set("social_impact_demographic", demographic, ttl=86400)
         
         return APIResponse(
             success=True,
@@ -3679,6 +3799,15 @@ async def get_disability_support_analysis():
     - Overall accessibility score (0-100)
     """
     try:
+        # Check cache first (20 minutes TTL)
+        cached_data = cache_manager.get("social_impact_disability") if cache_manager else None
+        if cached_data:
+            return APIResponse(
+                success=True,
+                data=cached_data,
+                message="Disability support assessment complete (cached)"
+            )
+        
         impact_data = await social_impact_service.calculate_comprehensive_impact()
         
         disability = {
@@ -3693,6 +3822,10 @@ async def get_disability_support_analysis():
             'citizens_with_disabilities_served': impact_data['disability_support']['estimated_citizens_with_disabilities_served'],
             'recommendation': impact_data['disability_support']['recommendation']
         }
+        
+        # Cache for 24 hours (data doesn't change during runtime)
+        if cache_manager:
+            cache_manager.set("social_impact_disability", disability, ttl=86400)
         
         return APIResponse(
             success=True,

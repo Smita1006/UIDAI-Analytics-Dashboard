@@ -30,7 +30,7 @@ import { GeographicTab } from "@/components/dashboard/geographic-tab";
 import { TemporalTab } from "@/components/dashboard/temporal-tab";
 import { DemographicTab } from "@/components/dashboard/demographic-tab";
 import { MLInsightsTab } from "@/components/dashboard/ml-insights-tab";
-import { NewFeaturesTab } from "@/components/dashboard/new-features-tab";
+import { AdvancedAnalyticsTab } from "@/components/dashboard/advanced-analytics-tab";
 import { GovernanceTab } from "@/components/dashboard/governance-tab";
 import { SocialImpactTab } from "@/components/dashboard/social-impact-tab";
 import { DecisionSupportTab } from "@/components/dashboard/decision-support-tab";
@@ -104,7 +104,7 @@ export default function Dashboard() {
     { id: "decision-support", label: "Decision Support", icon: Lightbulb },
     { id: "governance", label: "Governance", icon: Shield },
     { id: "social-impact", label: "Social Impact", icon: Heart },
-    { id: "new-features", label: "New Features", icon: AlertTriangle },
+    { id: "advanced-analytics", label: "Advanced Analytics", icon: AlertTriangle },
   ];
 
   if (loading && !summary) {
@@ -262,8 +262,8 @@ export default function Dashboard() {
                 <SocialImpactTab />
               </TabsContent>
 
-              <TabsContent value="new-features" className="p-6 space-y-6">
-                <NewFeaturesTab data={summary} />
+              <TabsContent value="advanced-analytics" className="p-6 space-y-6">
+                <AdvancedAnalyticsTab data={summary} />
               </TabsContent>
             </div>
           </Tabs>
